@@ -4,11 +4,145 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>日常点検チェックシート</title>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    background: #ebe9e2;
+    color: #1a1a1a;
+  }
+  #app-container {
+    max-width: 1100px; margin: 0 auto;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 200px;
+  }
+  #initial-loader {
+    text-align: center;
+    padding: 60px 20px;
+    color: #5f5e5a;
+  }
+  #initial-loader h1 {
+    font-size: 18px;
+    margin: 0 0 16px;
+  }
+  #initial-loader .spinner {
+    display: inline-block;
+    width: 32px; height: 32px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #185fa5;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #error-display {
+    display: none;
+    padding: 20px;
+    background: #fcebeb;
+    border: 1px solid #f7c1c1;
+    border-radius: 12px;
+    color: #a32d2d;
+    margin-bottom: 16px;
+  }
+  #error-display h3 { margin: 0 0 8px; font-size: 16px; }
+  #error-display pre { 
+    background: rgba(0,0,0,0.05); 
+    padding: 10px; 
+    border-radius: 6px; 
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 8px 0;
+  }
+  #lib-status {
+    font-size: 12px;
+    color: #5f5e5a;
+    margin-top: 16px;
+  }
+  #lib-status .check { color: #3b6d11; }
+  #lib-status .fail { color: #a32d2d; font-weight: bold; }
+</style>
+</head>
+<body>
+<div id="app-container">
+  <div id="error-display"></div>
+  <div id="initial-loader">
+    <h1>日常点検アプリ 読み込み中...</h1>
+    <div class="spinner"></div>
+    <div id="lib-status">
+      <div id="status-react">React 読み込み中...</div>
+      <div id="status-babel">Babel 読み込み中...</div>
+      <div id="status-xlsx">XLSX 読み込み中...</div>
+      <div id="status-app" style="margin-top:8px;">アプリ初期化待機中...</div>
+    </div>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+  // エラー表示用ヘルパー
+  window.showError = function(title, detail) {
+    var el = document.getElementById('error-display');
+    var loader = document.getElementById('initial-loader');
+    if (loader) loader.style.display = 'none';
+    if (el) {
+      el.style.display = 'block';
+      el.innerHTML = '<h3>⚠ ' + title + '</h3><pre>' + 
+        String(detail).replace(/</g,'&lt;').replace(/>/g,'&gt;') + 
+        '</pre><p style="font-size:13px;margin-top:12px;">この内容をスクリーンショットで撮って共有してください。</p>';
+    }
+  };
+
+  // グローバルエラーキャッチ
+  window.addEventListener('error', function(e) {
+    window.showError('エラーが発生しました', 
+      (e.message || 'unknown') + '\n\nファイル: ' + (e.filename || 'unknown') + 
+      '\n行: ' + (e.lineno || '?') + ':' + (e.colno || '?'));
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    window.showError('通信または処理エラー', 
+      'reason: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+  });
+
+  // ライブラリ読み込み状態を監視
+  function updateStatus(id, label, ok) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.innerHTML = (ok ? '<span class="check">✓</span> ' : '<span class="fail">✗</span> ') + label;
+    }
+  }
+
+  function checkLibs() {
+    updateStatus('status-react', 'React: ' + (typeof React !== 'undefined' ? 'OK' : '未読み込み'), typeof React !== 'undefined');
+    updateStatus('status-babel', 'Babel: ' + (typeof Babel !== 'undefined' ? 'OK' : '未読み込み'), typeof Babel !== 'undefined');
+    updateStatus('status-xlsx', 'XLSX: ' + (typeof XLSX !== 'undefined' ? 'OK' : '未読み込み'), typeof XLSX !== 'undefined');
+    
+    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+      window.showError('Reactライブラリが読み込めません', 
+        '会社のネットワークが cdnjs.cloudflare.com へのアクセスをブロックしている可能性があります。\n\n対策: 別のブラウザで試す / IT部門に cdnjs.cloudflare.com の許可を依頼 / ライブラリ同梱版の作成を依頼');
+      return false;
+    }
+    if (typeof Babel === 'undefined') {
+      window.showError('Babelライブラリが読み込めません', 
+        '会社のネットワークが cdnjs.cloudflare.com へのアクセスをブロックしている可能性があります。');
+      return false;
+    }
+    if (typeof XLSX === 'undefined') {
+      // XLSXは必須ではないので警告のみ。アプリは動かす
+      console.warn('XLSX読み込み失敗 - Excel出力機能は使えません');
+    }
+    return true;
+  }
+</script>
+
+<!-- CDNライブラリ(すべて cdnjs.cloudflare.com に統一) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" onerror="window.showError('React読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。会社のネットワーク制限の可能性があります。')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" onerror="window.showError('ReactDOM読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js" onerror="window.showError('Babel読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="console.warn('XLSX読み込み失敗')"></script>
+
 <style>
   :root {
     --color-background-primary: #ffffff;
@@ -34,10 +168,6 @@
     --border-radius-md: 8px;
     --border-radius-lg: 12px;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 16px; font-family: var(--font-sans); background: var(--color-background-tertiary); color: var(--color-text-primary); }
-  #app-container { max-width: 1100px; margin: 0 auto; background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 20px; }
-  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
   @media print {
     body * { visibility: hidden; }
@@ -64,7 +194,6 @@
   .sync-dot.error { background: var(--color-text-danger); }
 
   .sheet-link { margin-left: 8px; padding: 4px 10px; font-size: 12px; background: var(--color-background-success); color: var(--color-text-success); border-radius: var(--border-radius-md); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-  .sheet-link:hover { opacity: 0.85; }
 
   .top-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding: 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); margin-bottom: 14px; }
   .top-bar input, .top-bar select { height: 44px; font-size: 15px; padding: 0 12px; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); box-sizing: border-box; }
@@ -92,8 +221,7 @@
   .row-content { font-size: 15px; line-height: 1.5; color: var(--color-text-primary); word-break: break-word; }
 
   .judge-group { display: flex; gap: 8px; }
-  .judge-btn { width: 64px; height: 56px; border-radius: var(--border-radius-md); font-size: 24px; font-weight: 500; cursor: pointer; border: 1px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; transition: transform 0.08s; font-family: var(--font-sans); }
-  .judge-btn:active:not(:disabled) { transform: scale(0.95); }
+  .judge-btn { width: 64px; height: 56px; border-radius: var(--border-radius-md); font-size: 24px; font-weight: 500; cursor: pointer; border: 1px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); }
   .judge-btn:disabled { cursor: not-allowed; opacity: 0.6; }
   .judge-btn.ok-on { background: var(--color-background-success); color: var(--color-text-success); border-color: var(--color-border-success); border-width: 2px; }
   .judge-btn.ng-on { background: var(--color-background-danger); color: var(--color-text-danger); border-color: var(--color-border-danger); border-width: 2px; }
@@ -103,7 +231,6 @@
   .ng-note textarea:disabled { background: var(--color-background-secondary); cursor: not-allowed; }
 
   .btn { height: 48px; padding: 0 18px; font-size: 15px; font-weight: 500; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); }
-  .btn:hover { background: var(--color-background-secondary); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn.primary { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
   .btn.danger { color: var(--color-text-danger); }
@@ -112,8 +239,6 @@
   .btn.sm { height: 36px; font-size: 13px; padding: 0 12px; }
 
   .hist-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; background: var(--color-background-primary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 8px; }
-  .hist-date { font-size: 15px; font-weight: 500; }
-  .hist-sub { font-size: 13px; color: var(--color-text-secondary); margin-top: 2px; }
   .pill { display: inline-block; padding: 2px 10px; border-radius: var(--border-radius-md); font-size: 12px; font-weight: 500; }
   .pill-ok { background: var(--color-background-success); color: var(--color-text-success); }
   .pill-ng { background: var(--color-background-danger); color: var(--color-text-danger); }
@@ -122,856 +247,793 @@
   .item-mgr input { width: 100%; height: 38px; padding: 0 10px; font-size: 14px; border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); box-sizing: border-box; }
 
   .empty { text-align: center; padding: 40px 20px; color: var(--color-text-secondary); font-size: 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); }
-  
   .progress-bar { height: 8px; background: var(--color-background-secondary); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-  .progress-fill { height: 100%; background: var(--color-text-success); transition: width 0.3s; }
+  .progress-fill { height: 100%; background: var(--color-text-success); }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
   .modal { background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 24px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; }
 
-  .setup-warning { padding: 20px; background: var(--color-background-warning); border: 1px solid #FAC775; border-radius: var(--border-radius-lg); margin-bottom: 16px; color: var(--color-text-warning); }
-  .setup-warning h3 { margin: 0 0 8px; font-size: 16px; font-weight: 500; }
-  .setup-warning code { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-
   .print-config { padding: 18px; background: var(--color-background-info); border: 1px solid var(--color-border-info); border-radius: var(--border-radius-lg); margin-bottom: 16px; }
-  .print-config h3 { margin: 0 0 12px; color: var(--color-text-info); font-size: 16px; font-weight: 500; }
 
   .month-table { width: 100%; border-collapse: collapse; font-size: 7pt; font-family: sans-serif; color: #000; }
   .month-table th, .month-table td { border: 1px solid #333; padding: 1px 2px; }
   .month-table thead th { background: #d0d0d0; font-weight: bold; }
-  .month-table .day-col { width: 18px; text-align: center; }
   .month-table .ok-cell { color: #060; font-weight: bold; text-align: center; font-size: 10pt; }
   .month-table .ng-cell { color: #c00; font-weight: bold; text-align: center; font-size: 10pt; background: #ffe8e8; }
 </style>
-</head>
-<body>
-<div id="app-container">
-  <div id="app"></div>
-</div>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useMemo, useRef } = React;
+// ライブラリチェック
+if (!checkLibs()) {
+  // エラー表示済み
+} else {
+  // ローダーを非表示
+  var loader = document.getElementById('initial-loader');
+  if (loader) loader.style.display = 'none';
 
-// ★★★ ここを自分の Apps Script ウェブアプリ URL に書き換えてください ★★★
-// 例: https://script.google.com/macros/s/AKfycb.../exec
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec
-';
+  const { useState, useEffect, useMemo, useRef } = React;
 
-// ★★★ スプレッドシートを開くためのURL(任意) ★★★
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit
-';
+  // ★★★ ここを自分の Apps Script ウェブアプリ URL に書き換えてください ★★★
+  const GAS_URL = 'YOUR_GAS_URL_HERE';
+  const SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
-const isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
+  const isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
-// ========== NID 点検項目(初回投入用) ==========
-const NID_ITEMS = [
-  { no: 1, place: 'RUN IN', side: '', content: '油圧シリンダからオイル漏れがないか' },
-  { no: 2, place: '1次エージング', side: '', content: 'オイルタンク油面計のフロートがゲージ内にあり、オイルが減っていないか' },
-  { no: 3, place: 'フィーダー', side: 'リモル側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
-  { no: 4, place: 'フィーダー', side: '乾燥室側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
-  { no: 5, place: 'フィーダー', side: 'リモル側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
-  { no: 6, place: 'フィーダー', side: '乾燥室側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
-  { no: 7, place: 'フィーダー', side: 'リモル側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-  { no: 8, place: 'フィーダー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-  { no: 9, place: 'フィーダー', side: 'リモル側', content: 'クランプ爪が変形していないか' },
-  { no: 10, place: 'フィーダー', side: '乾燥室側', content: 'クランプ爪が変形していないか' },
-  { no: 11, place: 'フィーダー', side: 'リモル側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
-  { no: 12, place: 'フィーダー', side: '乾燥室側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
-  { no: 13, place: 'フィーダー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
-  { no: 14, place: 'フィーダー', side: '', content: 'クランプ通過センサーが反応しているか(4か所)' },
-  { no: 15, place: 'フィーダー', side: '', content: 'トレー1枚ずつの切離しタイミングとウォーキングビームの搬送タイミングが適正か' },
-  { no: 16, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-  { no: 17, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-  { no: 18, place: 'フィーダー', side: '', content: '樹脂ローラー、鉄ローラーが回転しているか(4か所)' },
-  { no: 19, place: 'デモルダー', side: '', content: '反転部アームの角度がトレーに対して平行か' },
-  { no: 20, place: 'デモルダー', side: '', content: '反転部でのトレーのばたつきがないか' },
-  { no: 21, place: 'デモルダー', side: '', content: 'トレーが持ち上がる前に次のトレーが動いてないか' },
-  { no: 22, place: 'デモルダー', side: '', content: 'デモルダーの異音、振動がないか' },
-  { no: 23, place: 'デモルダー', side: '', content: '反転部からエアー漏れの音がしていないか' },
-  { no: 24, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-  { no: 25, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-  { no: 26, place: 'デモルダー', side: '', content: '反転部のエアー圧が0.5±0.05MPaか' },
-  { no: 27, place: 'センターチェーン', side: '', content: 'デモルダー、センターチェーンの乗継がスムーズか' },
-  { no: 28, place: 'センターチェーン', side: '', content: 'センターチェーン、スターチバックの乗継がスムーズか' },
-  { no: 29, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-  { no: 30, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーを下から持上げていないか' },
-  { no: 31, place: 'スターチバック', side: '', content: '樹脂ローラーが回転しているか(4か所)' },
-  { no: 32, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-  { no: 33, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーを下から持上げていないか' },
-  { no: 34, place: 'デポジッター', side: '', content: 'シャッター位置が正常か(押:0±0.5㎜ 引:9±0.5㎜)' },
-  { no: 35, place: 'デポジッター', side: '', content: '充填シャッターの油圧が基準値内で動作しているか(40~60bar)' },
-  { no: 36, place: 'デポジッター', side: '', content: '油圧シリンダー、油圧配管からオイル漏れがないか' },
-  { no: 37, place: 'デポジッター', side: '', content: '油圧シリンダーとシャッターの連結ピンが抜けていないか' },
-  { no: 38, place: 'デポジッター', side: '', content: 'トレー抑えシリンダーからエアー漏れがないか' },
-  { no: 39, place: '上掛け装置', side: '', content: '樹脂ローラーが回転しているか' },
-  { no: 40, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-  { no: 41, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-  { no: 42, place: '上掛け装置', side: '', content: '上掛け圧力が基準値であるか(0.3~0.4MPa)' },
-  { no: 43, place: 'スタッカー', side: '', content: 'クランプの開きがスムーズか' },
-  { no: 44, place: 'スタッカー', side: '', content: 'クランプ爪が変形していないか' },
-  { no: 45, place: 'スタッカー', side: '', content: 'クランプが閉じずにバウンドしていないか' },
-  { no: 46, place: 'スタッカー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
-  { no: 47, place: 'スタッカー', side: 'CFA側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
-  { no: 48, place: 'スタッカー', side: '乾燥室側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
-  { no: 49, place: 'スタッカー', side: '', content: 'トレー持上げの動作タイミングが正常か' },
-  { no: 50, place: 'スタッカー', side: 'CFA側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
-  { no: 51, place: 'スタッカー', side: '乾燥室側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
-  { no: 52, place: 'スタッカー', side: 'CFA側', content: '爪4点のスプリングがスムーズに動作しているか' },
-  { no: 53, place: 'スタッカー', side: '乾燥室側', content: '爪4点のスプリングがスムーズに動作しているか' },
-  { no: 54, place: 'スタッカー', side: 'CFA側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-  { no: 55, place: 'スタッカー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-  { no: 56, place: 'スタッカー', side: '', content: 'トレー積み上げ時にズレがないか(2㎜以上のすきまがないか)' },
-  { no: 57, place: 'スタッカー', side: '', content: '持ち上げ部4爪4点の動きが硬くないか' },
-  { no: 58, place: 'RUN OUT', side: '', content: '油圧シリンダーからオイル漏れがないか' },
-].map(it => ({ ...it, id: 'item_' + it.no }));
+  const NID_ITEMS = [
+    { no: 1, place: 'RUN IN', side: '', content: '油圧シリンダからオイル漏れがないか' },
+    { no: 2, place: '1次エージング', side: '', content: 'オイルタンク油面計のフロートがゲージ内にあり、オイルが減っていないか' },
+    { no: 3, place: 'フィーダー', side: 'リモル側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
+    { no: 4, place: 'フィーダー', side: '乾燥室側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
+    { no: 5, place: 'フィーダー', side: 'リモル側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
+    { no: 6, place: 'フィーダー', side: '乾燥室側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
+    { no: 7, place: 'フィーダー', side: 'リモル側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
+    { no: 8, place: 'フィーダー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
+    { no: 9, place: 'フィーダー', side: 'リモル側', content: 'クランプ爪が変形していないか' },
+    { no: 10, place: 'フィーダー', side: '乾燥室側', content: 'クランプ爪が変形していないか' },
+    { no: 11, place: 'フィーダー', side: 'リモル側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
+    { no: 12, place: 'フィーダー', side: '乾燥室側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
+    { no: 13, place: 'フィーダー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
+    { no: 14, place: 'フィーダー', side: '', content: 'クランプ通過センサーが反応しているか(4か所)' },
+    { no: 15, place: 'フィーダー', side: '', content: 'トレー1枚ずつの切離しタイミングとウォーキングビームの搬送タイミングが適正か' },
+    { no: 16, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
+    { no: 17, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
+    { no: 18, place: 'フィーダー', side: '', content: '樹脂ローラー、鉄ローラーが回転しているか(4か所)' },
+    { no: 19, place: 'デモルダー', side: '', content: '反転部アームの角度がトレーに対して平行か' },
+    { no: 20, place: 'デモルダー', side: '', content: '反転部でのトレーのばたつきがないか' },
+    { no: 21, place: 'デモルダー', side: '', content: 'トレーが持ち上がる前に次のトレーが動いてないか' },
+    { no: 22, place: 'デモルダー', side: '', content: 'デモルダーの異音、振動がないか' },
+    { no: 23, place: 'デモルダー', side: '', content: '反転部からエアー漏れの音がしていないか' },
+    { no: 24, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
+    { no: 25, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
+    { no: 26, place: 'デモルダー', side: '', content: '反転部のエアー圧が0.5±0.05MPaか' },
+    { no: 27, place: 'センターチェーン', side: '', content: 'デモルダー、センターチェーンの乗継がスムーズか' },
+    { no: 28, place: 'センターチェーン', side: '', content: 'センターチェーン、スターチバックの乗継がスムーズか' },
+    { no: 29, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
+    { no: 30, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーを下から持上げていないか' },
+    { no: 31, place: 'スターチバック', side: '', content: '樹脂ローラーが回転しているか(4か所)' },
+    { no: 32, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
+    { no: 33, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーを下から持上げていないか' },
+    { no: 34, place: 'デポジッター', side: '', content: 'シャッター位置が正常か(押:0±0.5㎜ 引:9±0.5㎜)' },
+    { no: 35, place: 'デポジッター', side: '', content: '充填シャッターの油圧が基準値内で動作しているか(40~60bar)' },
+    { no: 36, place: 'デポジッター', side: '', content: '油圧シリンダー、油圧配管からオイル漏れがないか' },
+    { no: 37, place: 'デポジッター', side: '', content: '油圧シリンダーとシャッターの連結ピンが抜けていないか' },
+    { no: 38, place: 'デポジッター', side: '', content: 'トレー抑えシリンダーからエアー漏れがないか' },
+    { no: 39, place: '上掛け装置', side: '', content: '樹脂ローラーが回転しているか' },
+    { no: 40, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
+    { no: 41, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
+    { no: 42, place: '上掛け装置', side: '', content: '上掛け圧力が基準値であるか(0.3~0.4MPa)' },
+    { no: 43, place: 'スタッカー', side: '', content: 'クランプの開きがスムーズか' },
+    { no: 44, place: 'スタッカー', side: '', content: 'クランプ爪が変形していないか' },
+    { no: 45, place: 'スタッカー', side: '', content: 'クランプが閉じずにバウンドしていないか' },
+    { no: 46, place: 'スタッカー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
+    { no: 47, place: 'スタッカー', side: 'CFA側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
+    { no: 48, place: 'スタッカー', side: '乾燥室側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
+    { no: 49, place: 'スタッカー', side: '', content: 'トレー持上げの動作タイミングが正常か' },
+    { no: 50, place: 'スタッカー', side: 'CFA側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
+    { no: 51, place: 'スタッカー', side: '乾燥室側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
+    { no: 52, place: 'スタッカー', side: 'CFA側', content: '爪4点のスプリングがスムーズに動作しているか' },
+    { no: 53, place: 'スタッカー', side: '乾燥室側', content: '爪4点のスプリングがスムーズに動作しているか' },
+    { no: 54, place: 'スタッカー', side: 'CFA側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
+    { no: 55, place: 'スタッカー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
+    { no: 56, place: 'スタッカー', side: '', content: 'トレー積み上げ時にズレがないか(2㎜以上のすきまがないか)' },
+    { no: 57, place: 'スタッカー', side: '', content: '持ち上げ部4爪4点の動きが硬くないか' },
+    { no: 58, place: 'RUN OUT', side: '', content: '油圧シリンダーからオイル漏れがないか' },
+  ].map(it => ({ ...it, id: 'item_' + it.no }));
 
-const SHIKOMI_ITEMS = [
-  { no: 1, place: '新ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - ポンプ運転時に異音振動がないか、油・液漏れがないか、ギアオイル残量が確認できるか' },
-  { no: 2, place: '新ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 3, place: '新ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 4, place: '新ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
-  { no: 5, place: '新ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
-  { no: 6, place: '新ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、ギアオイル・グリセリン残量が確認できるか' },
-  { no: 7, place: '新ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 8, place: '新ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動がないか、油・液漏れがないか' },
-  { no: 9, place: '新ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
-  { no: 10, place: '新ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
-  { no: 11, place: '新ライン', side: '真空チャンバー', content: '冷却水ポンプ - 異音振動がないか、水漏れがないか' },
-  { no: 12, place: '新ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量が確認できるか' },
-  { no: 13, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-  { no: 14, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-  { no: 15, place: '旧ライン', side: 'ゼラチン溶解', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
-  { no: 16, place: '旧ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 17, place: '旧ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 18, place: '旧ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
-  { no: 19, place: '旧ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
-  { no: 20, place: '旧ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-  { no: 21, place: '旧ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 22, place: '旧ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
-  { no: 23, place: '旧ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動・水漏れがないか' },
-  { no: 24, place: '旧ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
-  { no: 25, place: '旧ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
-  { no: 26, place: '小ロット', side: '計量タンク', content: '撹拌機A - 異音振動がないか' },
-  { no: 27, place: '小ロット', side: '計量タンク', content: '撹拌機B - 異音振動がないか' },
-  { no: 28, place: '小ロット', side: '計量タンク', content: '撹拌機C - 異音振動がないか' },
-  { no: 29, place: '小ロット', side: 'バッファータンク', content: '撹拌機A - 異音振動がないか' },
-  { no: 30, place: '小ロット', side: 'バッファータンク', content: '撹拌機B - 異音振動がないか' },
-  { no: 31, place: '小ロット', side: 'バッファータンク', content: '撹拌機C - 異音振動がないか' },
-  { no: 32, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプA - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 33, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプB - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 34, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプC - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 35, place: 'ミックスタンク', side: '新', content: '撹拌機 - 異音振動がないか' },
-  { no: 36, place: 'ミックスタンク', side: '旧', content: '撹拌機 - 異音振動がないか' },
-  { no: 37, place: 'ミックスタンク後', side: '1号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 38, place: 'ミックスタンク後', side: '2号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 39, place: 'ミックスタンク後', side: '3号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 40, place: 'ミックスタンク後', side: '4号', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 41, place: 'レオニーダー', side: '', content: '真空ポンプ - 異音振動がないか' },
-  { no: 42, place: 'エアレーション', side: '', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-  { no: 43, place: 'エアレーション', side: '', content: 'CIPポンプ - 異音振動・水漏れがないか' },
-  { no: 44, place: 'エアレーション', side: 'ストックタンク', content: '撹拌機 - 異音振動がないか' },
-  { no: 45, place: '温水ポンプ', side: '11台', content: 'ポンプ運転時に異音振動・水漏れがないか' },
-  { no: 46, place: '温調弁', side: '9台', content: '水漏れがないか' },
-  { no: 47, place: '3方バルブ', side: '', content: '液漏れがないか' },
-  { no: 48, place: '配管', side: '', content: '蒸気、水漏れがないか' },
-].map(it => ({ ...it, id: 'item_' + it.no }));
+  const SHIKOMI_ITEMS = [
+    { no: 1, place: '新ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - ポンプ運転時に異音振動がないか、油・液漏れがないか、ギアオイル残量が確認できるか' },
+    { no: 2, place: '新ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 3, place: '新ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 4, place: '新ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
+    { no: 5, place: '新ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
+    { no: 6, place: '新ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、ギアオイル・グリセリン残量が確認できるか' },
+    { no: 7, place: '新ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 8, place: '新ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動がないか、油・液漏れがないか' },
+    { no: 9, place: '新ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
+    { no: 10, place: '新ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
+    { no: 11, place: '新ライン', side: '真空チャンバー', content: '冷却水ポンプ - 異音振動がないか、水漏れがないか' },
+    { no: 12, place: '新ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量が確認できるか' },
+    { no: 13, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
+    { no: 14, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
+    { no: 15, place: '旧ライン', side: 'ゼラチン溶解', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
+    { no: 16, place: '旧ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 17, place: '旧ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 18, place: '旧ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
+    { no: 19, place: '旧ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
+    { no: 20, place: '旧ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
+    { no: 21, place: '旧ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 22, place: '旧ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
+    { no: 23, place: '旧ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動・水漏れがないか' },
+    { no: 24, place: '旧ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
+    { no: 25, place: '旧ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
+    { no: 26, place: '小ロット', side: '計量タンク', content: '撹拌機A - 異音振動がないか' },
+    { no: 27, place: '小ロット', side: '計量タンク', content: '撹拌機B - 異音振動がないか' },
+    { no: 28, place: '小ロット', side: '計量タンク', content: '撹拌機C - 異音振動がないか' },
+    { no: 29, place: '小ロット', side: 'バッファータンク', content: '撹拌機A - 異音振動がないか' },
+    { no: 30, place: '小ロット', side: 'バッファータンク', content: '撹拌機B - 異音振動がないか' },
+    { no: 31, place: '小ロット', side: 'バッファータンク', content: '撹拌機C - 異音振動がないか' },
+    { no: 32, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプA - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 33, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプB - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 34, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプC - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 35, place: 'ミックスタンク', side: '新', content: '撹拌機 - 異音振動がないか' },
+    { no: 36, place: 'ミックスタンク', side: '旧', content: '撹拌機 - 異音振動がないか' },
+    { no: 37, place: 'ミックスタンク後', side: '1号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 38, place: 'ミックスタンク後', side: '2号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 39, place: 'ミックスタンク後', side: '3号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 40, place: 'ミックスタンク後', side: '4号', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 41, place: 'レオニーダー', side: '', content: '真空ポンプ - 異音振動がないか' },
+    { no: 42, place: 'エアレーション', side: '', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
+    { no: 43, place: 'エアレーション', side: '', content: 'CIPポンプ - 異音振動・水漏れがないか' },
+    { no: 44, place: 'エアレーション', side: 'ストックタンク', content: '撹拌機 - 異音振動がないか' },
+    { no: 45, place: '温水ポンプ', side: '11台', content: 'ポンプ運転時に異音振動・水漏れがないか' },
+    { no: 46, place: '温調弁', side: '9台', content: '水漏れがないか' },
+    { no: 47, place: '3方バルブ', side: '', content: '液漏れがないか' },
+    { no: 48, place: '配管', side: '', content: '蒸気、水漏れがないか' },
+  ].map(it => ({ ...it, id: 'item_' + it.no }));
 
-const MACHINES = {
-  nid: { id: 'nid', name: 'NID日常点検', subtitle: 'チェックシート', paperSize: 'A3', defaultItems: NID_ITEMS },
-  shikomi: { id: 'shikomi', name: '仕込み日常点検', subtitle: 'チェックリスト', paperSize: 'A4', defaultItems: SHIKOMI_ITEMS },
-};
+  const MACHINES = {
+    nid: { id: 'nid', name: 'NID日常点検', subtitle: 'チェックシート', paperSize: 'A3', defaultItems: NID_ITEMS },
+    shikomi: { id: 'shikomi', name: '仕込み日常点検', subtitle: 'チェックリスト', paperSize: 'A4', defaultItems: SHIKOMI_ITEMS },
+  };
 
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-};
-const currentMonthStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-};
-const timeStr = () => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-};
-const daysInMonth = (yyyymm) => {
-  const [y, m] = yyyymm.split('-').map(Number);
-  return new Date(y, m, 0).getDate();
-};
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const currentMonthStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  };
+  const timeStr = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  };
+  const daysInMonth = (yyyymm) => {
+    const [y, m] = yyyymm.split('-').map(Number);
+    return new Date(y, m, 0).getDate();
+  };
 
-// ========== Apps Script API ==========
-// CORS制約のため、POSTは text/plain で送る
-async function callGAS(action, body = {}) {
-  if (!isGasConfigured) throw new Error('GAS未設定');
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, ...body })
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
-}
+  async function callGAS(action, body = {}) {
+    if (!isGasConfigured) throw new Error('GAS未設定');
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, ...body })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
 
-function App() {
-  const [machineId, setMachineId] = useState('nid');
-  const [tab, setTab] = useState('check');
-  
-  const [allItems, setAllItems] = useState({ nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS });
-  const [allRecords, setAllRecords] = useState({ nid: {}, shikomi: {} });
-  
-  const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(todayStr());
-  const [inspector, setInspector] = useState('');
-  const [checker, setChecker] = useState('');
+  function App() {
+    const [machineId, setMachineId] = useState('nid');
+    const [tab, setTab] = useState('check');
+    const [allItems, setAllItems] = useState({ nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS });
+    const [allRecords, setAllRecords] = useState({ nid: {}, shikomi: {} });
+    const [loading, setLoading] = useState(true);
+    const [date, setDate] = useState(todayStr());
+    const [inspector, setInspector] = useState('');
+    const [checker, setChecker] = useState('');
+    const [editMode, setEditMode] = useState(false);
+    const [syncStatus, setSyncStatus] = useState({ state: 'idle', message: '', at: null });
+    const [editingItem, setEditingItem] = useState(null);
+    const [newItem, setNewItem] = useState({ place: '', side: '', content: '' });
+    const [printMonth, setPrintMonth] = useState(currentMonthStr());
 
-  const [editMode, setEditMode] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({ state: 'idle', message: '', at: null });
-  
-  const [editingItem, setEditingItem] = useState(null);
-  const [newItem, setNewItem] = useState({ place: '', side: '', content: '' });
+    const saveTimerRef = useRef(null);
+    const pendingDataRef = useRef(null);
 
-  const [printMonth, setPrintMonth] = useState(currentMonthStr());
+    const items = allItems[machineId] || [];
+    const records = allRecords[machineId] || {};
+    const machine = MACHINES[machineId];
 
-  // 保存処理のキュー(連続クリック対策)
-  const saveTimerRef = useRef(null);
-  const pendingDataRef = useRef(null);
+    useEffect(() => {
+      if (!isGasConfigured) { setLoading(false); return; }
+      refresh();
+    }, []);
 
-  const items = allItems[machineId] || [];
-  const records = allRecords[machineId] || {};
-  const machine = MACHINES[machineId];
-
-  useEffect(() => {
-    if (!isGasConfigured) { setLoading(false); return; }
-    refresh();
-  }, []);
-
-  const refresh = async () => {
-    if (!isGasConfigured) return;
-    setSyncStatus({ state: 'syncing', message: '同期中...', at: null });
-    try {
-      const data = await callGAS('loadAll');
-      const newItems = { ...allItems };
-      const newRecords = { ...allRecords };
-      for (const mid of ['nid', 'shikomi']) {
-        if (data.items && data.items[mid] && data.items[mid].length > 0) {
-          newItems[mid] = data.items[mid];
+    const refresh = async () => {
+      if (!isGasConfigured) return;
+      setSyncStatus({ state: 'syncing', message: '同期中...', at: null });
+      try {
+        const data = await callGAS('loadAll');
+        const newItems = { ...allItems };
+        const newRecords = { ...allRecords };
+        for (const mid of ['nid', 'shikomi']) {
+          if (data.items && data.items[mid] && data.items[mid].length > 0) {
+            newItems[mid] = data.items[mid];
+          }
+          newRecords[mid] = (data.records && data.records[mid]) || {};
         }
-        newRecords[mid] = (data.records && data.records[mid]) || {};
+        setAllItems(newItems);
+        setAllRecords(newRecords);
+        setSyncStatus({ state: 'online', message: '最新です', at: timeStr() });
+      } catch (e) {
+        setSyncStatus({ state: 'error', message: '同期エラー: ' + e.message, at: null });
       }
-      setAllItems(newItems);
-      setAllRecords(newRecords);
-      setSyncStatus({ state: 'online', message: '最新です', at: timeStr() });
-    } catch (e) {
-      console.error(e);
-      setSyncStatus({ state: 'error', message: '同期エラー: ' + e.message, at: null });
-    }
-    setLoading(false);
-  };
+      setLoading(false);
+    };
 
-  // 初回シート初期化(項目が空の時に項目マスタを送る)
-  const initializeSheet = async () => {
-    if (!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
-    setSyncStatus({ state: 'syncing', message: '初期化中...', at: null });
-    try {
-      await callGAS('init');
-      await callGAS('saveItems', { machineId: 'nid', items: NID_ITEMS });
-      await callGAS('saveItems', { machineId: 'shikomi', items: SHIKOMI_ITEMS });
-      await refresh();
-      alert('初期化完了しました');
-    } catch (e) {
-      setSyncStatus({ state: 'error', message: '初期化失敗: ' + e.message, at: null });
-    }
-  };
+    const initializeSheet = async () => {
+      if (!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
+      setSyncStatus({ state: 'syncing', message: '初期化中...', at: null });
+      try {
+        await callGAS('init');
+        await callGAS('saveItems', { machineId: 'nid', items: NID_ITEMS });
+        await callGAS('saveItems', { machineId: 'shikomi', items: SHIKOMI_ITEMS });
+        await refresh();
+        alert('初期化完了しました');
+      } catch (e) {
+        setSyncStatus({ state: 'error', message: '初期化失敗: ' + e.message, at: null });
+      }
+    };
 
-  const current = records[date] || { results: {}, notes: {}, inspector: '', checker: '' };
+    const current = records[date] || { results: {}, notes: {}, inspector: '', checker: '' };
 
-  useEffect(() => {
-    setInspector(current.inspector || '');
-    setChecker(current.checker || '');
-  }, [date, machineId, records]);
+    useEffect(() => {
+      setInspector(current.inspector || '');
+      setChecker(current.checker || '');
+    }, [date, machineId, records]);
 
-  // 保存(debounce で連打を1回にまとめる)
-  const saveRecord = (dateKey, data) => {
-    const newRecs = { ...records, [dateKey]: data };
-    setAllRecords(prev => ({ ...prev, [machineId]: newRecs }));
-    if (!isGasConfigured) return;
-    
-    pendingDataRef.current = { machineId, date: dateKey, data };
-    setSyncStatus({ state: 'syncing', message: '保存待機中...', at: null });
-    
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      const pending = pendingDataRef.current;
-      if (!pending) return;
+    const saveRecord = (dateKey, data) => {
+      const newRecs = { ...records, [dateKey]: data };
+      setAllRecords(prev => ({ ...prev, [machineId]: newRecs }));
+      if (!isGasConfigured) return;
+      pendingDataRef.current = { machineId, date: dateKey, data };
+      setSyncStatus({ state: 'syncing', message: '保存待機中...', at: null });
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(async () => {
+        const pending = pendingDataRef.current;
+        if (!pending) return;
+        try {
+          setSyncStatus({ state: 'syncing', message: '保存中...', at: null });
+          await callGAS('saveRecord', pending);
+          setSyncStatus({ state: 'editing', message: '保存しました', at: timeStr() });
+        } catch (e) {
+          setSyncStatus({ state: 'error', message: '保存失敗: ' + e.message, at: null });
+        }
+      }, 800);
+    };
+
+    const saveItemsToGAS = async (next) => {
+      setAllItems(prev => ({ ...prev, [machineId]: next }));
+      if (!isGasConfigured) return;
       try {
         setSyncStatus({ state: 'syncing', message: '保存中...', at: null });
-        await callGAS('saveRecord', pending);
+        await callGAS('saveItems', { machineId, items: next });
         setSyncStatus({ state: 'editing', message: '保存しました', at: timeStr() });
       } catch (e) {
         setSyncStatus({ state: 'error', message: '保存失敗: ' + e.message, at: null });
       }
-    }, 800);
-  };
+    };
 
-  const saveItemsToGAS = async (next) => {
-    setAllItems(prev => ({ ...prev, [machineId]: next }));
-    if (!isGasConfigured) return;
-    try {
-      setSyncStatus({ state: 'syncing', message: '保存中...', at: null });
-      await callGAS('saveItems', { machineId, items: next });
-      setSyncStatus({ state: 'editing', message: '保存しました', at: timeStr() });
-    } catch (e) {
-      setSyncStatus({ state: 'error', message: '保存失敗: ' + e.message, at: null });
-    }
-  };
+    const setResult = (itemId, value) => {
+      if (!editMode) return;
+      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
+      const newResults = { ...cur.results };
+      if (newResults[itemId] === value) delete newResults[itemId];
+      else newResults[itemId] = value;
+      saveRecord(date, { ...cur, results: newResults, inspector, checker });
+    };
 
-  const setResult = (itemId, value) => {
-    if (!editMode) return;
-    const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-    const newResults = { ...cur.results };
-    if (newResults[itemId] === value) delete newResults[itemId];
-    else newResults[itemId] = value;
-    saveRecord(date, { ...cur, results: newResults, inspector, checker });
-  };
+    const setNote = (itemId, text) => {
+      if (!editMode) return;
+      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
+      saveRecord(date, { ...cur, notes: { ...cur.notes, [itemId]: text }, inspector, checker });
+    };
 
-  const setNote = (itemId, text) => {
-    if (!editMode) return;
-    const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-    saveRecord(date, { ...cur, notes: { ...cur.notes, [itemId]: text }, inspector, checker });
-  };
+    const updateMeta = (field, value) => {
+      if (!editMode) return;
+      if (field === 'inspector') setInspector(value);
+      if (field === 'checker') setChecker(value);
+      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
+      saveRecord(date, { ...cur, [field]: value });
+    };
 
-  const updateMeta = (field, value) => {
-    if (!editMode) return;
-    if (field === 'inspector') setInspector(value);
-    if (field === 'checker') setChecker(value);
-    const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-    saveRecord(date, { ...cur, [field]: value });
-  };
+    const clearDay = async () => {
+      if (!editMode) return;
+      if (!confirm(`${date}の点検記録を削除しますか?`)) return;
+      saveRecord(date, { results: {}, notes: {}, inspector: '', checker: '' });
+      setInspector(''); setChecker('');
+    };
 
-  const clearDay = async () => {
-    if (!editMode) return;
-    if (!confirm(`${date}の点検記録を削除しますか?`)) return;
-    saveRecord(date, { results: {}, notes: {}, inspector: '', checker: '' });
-    setInspector(''); setChecker('');
-  };
+    const stats = useMemo(() => {
+      const r = current.results || {};
+      let ok = 0, ng = 0;
+      Object.values(r).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
+      return { ok, ng, done: ok + ng, total: items.length };
+    }, [current, items]);
 
-  const stats = useMemo(() => {
-    const r = current.results || {};
-    let ok = 0, ng = 0;
-    Object.values(r).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
-    return { ok, ng, done: ok + ng, total: items.length };
-  }, [current, items]);
+    const grouped = useMemo(() => {
+      const g = {};
+      items.forEach(it => {
+        if (!g[it.place]) g[it.place] = [];
+        g[it.place].push(it);
+      });
+      return g;
+    }, [items]);
 
-  const grouped = useMemo(() => {
-    const g = {};
-    items.forEach(it => {
-      if (!g[it.place]) g[it.place] = [];
-      g[it.place].push(it);
-    });
-    return g;
-  }, [items]);
-
-  const dateList = useMemo(() => 
-    Object.keys(records).filter(d => {
-      const r = records[d];
-      return r && r.results && Object.keys(r.results).length > 0;
-    }).sort((a,b) => b.localeCompare(a)), [records]);
-
-  const machineStats = useMemo(() => {
-    const stats = {};
-    for (const mid of ['nid', 'shikomi']) {
-      const recs = allRecords[mid] || {};
-      const count = Object.keys(recs).filter(d => {
-        const r = recs[d];
+    const dateList = useMemo(() => 
+      Object.keys(records).filter(d => {
+        const r = records[d];
         return r && r.results && Object.keys(r.results).length > 0;
-      }).length;
-      stats[mid] = count;
-    }
-    return stats;
-  }, [allRecords]);
+      }).sort((a,b) => b.localeCompare(a)), [records]);
 
-  const addItem = () => {
-    if (!newItem.content.trim()) { alert('内容を入力してください'); return; }
-    const maxNo = items.reduce((m, it) => Math.max(m, it.no), 0);
-    saveItemsToGAS([...items, { ...newItem, no: maxNo + 1, id: 'item_' + (maxNo + 1) }]);
-    setNewItem({ place: '', side: '', content: '' });
-  };
-  const deleteItem = (id) => {
-    if (!confirm('この点検項目を削除しますか?\n(過去の記録からは消えません)')) return;
-    saveItemsToGAS(items.filter(it => it.id !== id));
-  };
-  const saveEditItem = () => {
-    saveItemsToGAS(items.map(it => it.id === editingItem.id ? editingItem : it));
-    setEditingItem(null);
-  };
+    const machineStats = useMemo(() => {
+      const stats = {};
+      for (const mid of ['nid', 'shikomi']) {
+        const recs = allRecords[mid] || {};
+        const count = Object.keys(recs).filter(d => {
+          const r = recs[d];
+          return r && r.results && Object.keys(r.results).length > 0;
+        }).length;
+        stats[mid] = count;
+      }
+      return stats;
+    }, [allRecords]);
 
-  const doPrintMonth = () => {
-    const styleId = 'dynamic-print-style';
-    let styleEl = document.getElementById(styleId);
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      document.head.appendChild(styleEl);
-    }
-    styleEl.textContent = `@media print { @page { size: ${machine.paperSize} landscape; margin: 6mm; } }`;
-    document.getElementById('print-area').classList.add('show');
-    setTimeout(() => {
-      window.print();
+    const addItem = () => {
+      if (!newItem.content.trim()) { alert('内容を入力してください'); return; }
+      const maxNo = items.reduce((m, it) => Math.max(m, it.no), 0);
+      saveItemsToGAS([...items, { ...newItem, no: maxNo + 1, id: 'item_' + (maxNo + 1) }]);
+      setNewItem({ place: '', side: '', content: '' });
+    };
+    const deleteItem = (id) => {
+      if (!confirm('この点検項目を削除しますか?')) return;
+      saveItemsToGAS(items.filter(it => it.id !== id));
+    };
+    const saveEditItem = () => {
+      saveItemsToGAS(items.map(it => it.id === editingItem.id ? editingItem : it));
+      setEditingItem(null);
+    };
+
+    const doPrintMonth = () => {
+      const styleId = 'dynamic-print-style';
+      let styleEl = document.getElementById(styleId);
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = `@media print { @page { size: ${machine.paperSize} landscape; margin: 6mm; } }`;
+      document.getElementById('print-area').classList.add('show');
       setTimeout(() => {
-        document.getElementById('print-area').classList.remove('show');
-      }, 500);
-    }, 100);
-  };
+        window.print();
+        setTimeout(() => {
+          document.getElementById('print-area').classList.remove('show');
+        }, 500);
+      }, 100);
+    };
 
-  const exportExcel = () => {
-    if (typeof XLSX === 'undefined') { alert('Excelライブラリ読み込み中です'); return; }
-    const days = daysInMonth(printMonth);
-    const [y, m] = printMonth.split('-');
-    
-    const header = ['No.', '場所', '側', '点検内容'];
-    for (let d = 1; d <= days; d++) header.push(String(d));
-    header.push('備考');
-    
-    const aoa = [[`${m}月度 ${machine.name}${machine.subtitle}`], [], header];
-    
-    items.forEach(it => {
-      const row = [it.no, it.place, it.side, it.content];
-      const noteCollector = [];
+    const exportExcel = () => {
+      if (typeof XLSX === 'undefined') { alert('Excelライブラリが読み込まれていません'); return; }
+      const days = daysInMonth(printMonth);
+      const [y, m] = printMonth.split('-');
+      const header = ['No.', '場所', '側', '点検内容'];
+      for (let d = 1; d <= days; d++) header.push(String(d));
+      header.push('備考');
+      const aoa = [[`${m}月度 ${machine.name}${machine.subtitle}`], [], header];
+      items.forEach(it => {
+        const row = [it.no, it.place, it.side, it.content];
+        const noteCollector = [];
+        for (let d = 1; d <= days; d++) {
+          const dateKey = `${printMonth}-${String(d).padStart(2,'0')}`;
+          const rec = records[dateKey];
+          const v = rec && rec.results ? rec.results[it.id] : null;
+          row.push(v === 'ok' ? '○' : v === 'ng' ? '×' : '');
+          const note = rec && rec.notes ? rec.notes[it.id] : null;
+          if (note && v === 'ng') noteCollector.push(`${d}日: ${note}`);
+        }
+        row.push(noteCollector.join(' / '));
+        aoa.push(row);
+      });
+      aoa.push([]);
+      const inspectorRow = ['点検者', '', '', ''];
+      const checkerRow = ['確認者', '', '', ''];
       for (let d = 1; d <= days; d++) {
         const dateKey = `${printMonth}-${String(d).padStart(2,'0')}`;
         const rec = records[dateKey];
-        const v = rec && rec.results ? rec.results[it.id] : null;
-        row.push(v === 'ok' ? '○' : v === 'ng' ? '×' : '');
-        const note = rec && rec.notes ? rec.notes[it.id] : null;
-        if (note && v === 'ng') noteCollector.push(`${d}日: ${note}`);
+        inspectorRow.push(rec?.inspector || '');
+        checkerRow.push(rec?.checker || '');
       }
-      row.push(noteCollector.join(' / '));
-      aoa.push(row);
-    });
+      inspectorRow.push(''); checkerRow.push('');
+      aoa.push(inspectorRow);
+      aoa.push(checkerRow);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40}, ...Array.from({length: days}, () => ({wch:4})), {wch:30}];
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 + days } }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `${m}月`);
+      XLSX.writeFile(wb, `${machine.name}_${printMonth}.xlsx`);
+    };
 
-    aoa.push([]);
-    const inspectorRow = ['点検者', '', '', ''];
-    const checkerRow = ['確認者', '', '', ''];
-    for (let d = 1; d <= days; d++) {
-      const dateKey = `${printMonth}-${String(d).padStart(2,'0')}`;
-      const rec = records[dateKey];
-      inspectorRow.push(rec?.inspector || '');
-      checkerRow.push(rec?.checker || '');
+    const exportDailyExcel = () => {
+      if (typeof XLSX === 'undefined') { alert('Excelライブラリが読み込まれていません'); return; }
+      if (!current.results || Object.keys(current.results).length === 0) {
+        alert('この日の点検結果がありません'); return;
+      }
+      const aoa = [
+        [`${machine.name}${machine.subtitle}`],
+        ['日付', date, '', '点検者', inspector, '確認者', checker],
+        [],
+        ['No.', '場所', '側', '点検内容', '判定', '備考'],
+      ];
+      items.forEach(it => {
+        const v = current.results[it.id];
+        const note = (current.notes && current.notes[it.id]) || '';
+        aoa.push([it.no, it.place, it.side, it.content, v === 'ok' ? '○' : v === 'ng' ? '×' : '', note]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40},{wch:6},{wch:30}];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, date);
+      XLSX.writeFile(wb, `${machine.name}_${date}.xlsx`);
+    };
+
+    if (loading) return <div className="empty">読み込み中... (Apps Script と通信中)</div>;
+
+    if (!isGasConfigured) {
+      return (
+        <div className="app-root">
+          <div style={{padding:'20px', background:'#faeeda', border:'1px solid #FAC775', borderRadius:'12px', color:'#854f0b'}}>
+            <h3 style={{margin:'0 0 8px'}}>⚠ Google Apps Script の設定が必要です</h3>
+            <p>このHTMLファイルの <code style={{background:'rgba(0,0,0,0.05)',padding:'2px 6px',borderRadius:'4px'}}>GAS_URL</code> を、ご自身の Apps Script ウェブアプリURLに書き換えてください。</p>
+          </div>
+        </div>
+      );
     }
-    inspectorRow.push(''); checkerRow.push('');
-    aoa.push(inspectorRow);
-    aoa.push(checkerRow);
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40}, ...Array.from({length: days}, () => ({wch:4})), {wch:30}];
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 + days } }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${m}月`);
-    XLSX.writeFile(wb, `${machine.name}_${printMonth}.xlsx`);
-  };
+    const days = daysInMonth(printMonth);
+    const [py, pm] = printMonth.split('-');
 
-  const exportDailyExcel = () => {
-    if (typeof XLSX === 'undefined') { alert('Excelライブラリ読み込み中です'); return; }
-    if (!current.results || Object.keys(current.results).length === 0) {
-      alert('この日の点検結果がありません'); return;
-    }
-    const aoa = [
-      [`${machine.name}${machine.subtitle}`],
-      ['日付', date, '', '点検者', inspector, '確認者', checker],
-      [],
-      ['No.', '場所', '側', '点検内容', '判定', '備考'],
-    ];
-    items.forEach(it => {
-      const v = current.results[it.id];
-      const note = (current.notes && current.notes[it.id]) || '';
-      aoa.push([it.no, it.place, it.side, it.content, v === 'ok' ? '○' : v === 'ng' ? '×' : '', note]);
-    });
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40},{wch:6},{wch:30}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, date);
-    XLSX.writeFile(wb, `${machine.name}_${date}.xlsx`);
-  };
-
-  if (loading) return <div className="empty">読み込み中...</div>;
-
-  if (!isGasConfigured) {
     return (
       <div className="app-root">
-        <div className="setup-warning">
-          <h3><i className="ti ti-alert-triangle" aria-hidden="true"></i> Google Apps Script の設定が必要です</h3>
-          <p style={{margin:'8px 0'}}>このHTMLファイルの <code>GAS_URL</code> を、ご自身の Apps Script ウェブアプリURLに書き換えてください。設定方法は添付の SETUP.md を参照してください。</p>
+        <div className="machine-selector no-print">
+          {Object.values(MACHINES).map(m => (
+            <button key={m.id} className={`machine-tab ${machineId === m.id ? 'active' : ''}`} onClick={() => setMachineId(m.id)}>
+              {m.name}
+              <span className="badge">{machineStats[m.id]}日分</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="sync-bar no-print">
+          <span className="sync-status">
+            <span className={`sync-dot ${syncStatus.state === 'online' ? 'online' : syncStatus.state === 'editing' ? 'editing' : syncStatus.state === 'error' ? 'error' : ''}`}></span>
+            <span>{syncStatus.message || '待機中'}</span>
+            {syncStatus.at && <span style={{color:'#888780'}}>({syncStatus.at})</span>}
+          </span>
+          {SHEET_URL !== 'YOUR_SHEET_URL_HERE' && (
+            <a className="sheet-link" href={SHEET_URL} target="_blank" rel="noopener">📊 シートを開く</a>
+          )}
+          <button className="btn sm" onClick={refresh} style={{marginLeft:'auto'}}>🔄 最新を取得</button>
+          <button 
+            className={`btn sm ${editMode ? 'warning' : 'primary'}`}
+            onClick={() => {
+              if (editMode) setEditMode(false);
+              else if (confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')) setEditMode(true);
+            }}
+          >
+            {editMode ? '🔒 編集を終える' : '✏ 編集モード'}
+          </button>
+        </div>
+
+        <div className="tabs no-print">
+          <button className={`tab ${tab==='check'?'active':''}`} onClick={()=>setTab('check')}>点検実施</button>
+          <button className={`tab ${tab==='history'?'active':''}`} onClick={()=>setTab('history')}>履歴 ({dateList.length})</button>
+          <button className={`tab ${tab==='items'?'active':''}`} onClick={()=>setTab('items')}>項目管理</button>
+          <button className={`tab ${tab==='monthly'?'active':''}`} onClick={()=>setTab('monthly')}>月次出力</button>
+        </div>
+
+        {tab === 'check' && (
+          <>
+            <div className="top-bar no-print">
+              <div className="field"><label>日付</label>
+                <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:160}}/>
+              </div>
+              <div className="field"><label>点検者</label>
+                <input type="text" value={inspector} onChange={e=>updateMeta('inspector',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
+              </div>
+              <div className="field"><label>確認者</label>
+                <input type="text" value={checker} onChange={e=>updateMeta('checker',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
+              </div>
+              <div style={{marginLeft:'auto', display:'flex', gap:8}}>
+                <button className="btn" onClick={exportDailyExcel}>当日Excel</button>
+              </div>
+            </div>
+
+            <div className="summary no-print">
+              <div className="sc"><div className="sc-label">点検済み</div><div className="sc-value">{stats.done}<span style={{fontSize:14,color:'#5f5e5a'}}> / {stats.total}</span></div></div>
+              <div className="sc"><div className="sc-label">○ OK</div><div className="sc-value" style={{color:'#3b6d11'}}>{stats.ok}</div></div>
+              <div className="sc"><div className="sc-label">× NG</div><div className="sc-value" style={{color:'#a32d2d'}}>{stats.ng}</div></div>
+              <div className="sc"><div className="sc-label">未点検</div><div className="sc-value" style={{color:'#888780'}}>{stats.total - stats.done}</div></div>
+            </div>
+
+            <div className="progress-bar no-print">
+              <div className="progress-fill" style={{width: `${(stats.done/stats.total)*100}%`}}/>
+            </div>
+
+            <div className="no-print">
+              {Object.entries(grouped).map(([place, list]) => (
+                <div key={place}>
+                  <div className="group-header">📁 {place} <span style={{fontWeight:400, marginLeft:6}}>({list.length}項目)</span></div>
+                  {list.map(it => {
+                    const v = current.results && current.results[it.id];
+                    const note = (current.notes && current.notes[it.id]) || '';
+                    return (
+                      <div key={it.id} className={`check-row ${v==='ok'?'is-ok':v==='ng'?'is-ng':''} ${!editMode?'readonly':''}`}>
+                        <div className="row-no">{it.no}</div>
+                        <div className="row-body">
+                          <div>
+                            <span className="row-place">{it.place}</span>
+                            {it.side && <span className="row-side">{it.side}</span>}
+                          </div>
+                          <div className="row-content">{it.content}</div>
+                        </div>
+                        <div className="judge-group">
+                          <button className={`judge-btn ${v==='ok'?'ok-on':''}`} onClick={()=>setResult(it.id,'ok')} disabled={!editMode}>○</button>
+                          <button className={`judge-btn ${v==='ng'?'ng-on':''}`} onClick={()=>setResult(it.id,'ng')} disabled={!editMode}>×</button>
+                        </div>
+                        {v === 'ng' && (
+                          <div className="ng-note">
+                            <textarea value={note} onChange={e=>setNote(it.id, e.target.value)} placeholder="不具合内容を記入(任意)" disabled={!editMode}/>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            <div className="no-print" style={{marginTop:20, display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8}}>
+              <button className="btn danger" onClick={clearDay} disabled={!editMode}>🗑 この日の記録を削除</button>
+            </div>
+          </>
+        )}
+
+        {tab === 'history' && (
+          <div>
+            <div style={{padding:14, background:'#f5f4ef', borderRadius:'12px', marginBottom:14, fontSize:14, color:'#5f5e5a'}}>
+              {machine.name}の履歴。「最新を取得」で他の人の入力を反映、「シートを開く」で生データを直接確認できます。
+            </div>
+            {dateList.length === 0 ? (
+              <div className="empty">まだ点検記録がありません</div>
+            ) : dateList.map(d => {
+              const r = records[d];
+              let ok = 0, ng = 0;
+              Object.values(r.results || {}).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
+              return (
+                <div key={d} className="hist-row">
+                  <div>
+                    <div style={{fontSize:15, fontWeight:500}}>{d}</div>
+                    <div style={{fontSize:13, color:'#5f5e5a', marginTop:2}}>点検者: {r.inspector || '—'} / 確認者: {r.checker || '—'}</div>
+                  </div>
+                  <div><span className="pill pill-ok">○ {ok}</span> &nbsp; <span className="pill pill-ng">× {ng}</span></div>
+                  <div style={{color:'#5f5e5a', fontSize:13}}>{ok+ng}/{items.length} 完了</div>
+                  <div><button className="btn sm" onClick={()=>{setDate(d); setTab('check');}}>👁 開く</button></div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === 'items' && (
+          <div>
+            <div style={{padding:14, background:'#e6f1fb', borderRadius:'12px', marginBottom:14}}>
+              <div style={{fontSize:14, fontWeight:500, color:'#185fa5', marginBottom:10}}>
+                ➕ {machine.name}の項目を追加 {!editMode && <span style={{color:'#854f0b', fontWeight:400}}>(編集モードをONにしてください)</span>}
+              </div>
+              <div className="item-mgr" style={{background:'#fff', gridTemplateColumns:'50px 130px 90px 1fr 40px'}}>
+                <div style={{fontSize:13, color:'#5f5e5a'}}>No.自動</div>
+                <input value={newItem.place} onChange={e=>setNewItem({...newItem,place:e.target.value})} placeholder="場所" disabled={!editMode}/>
+                <input value={newItem.side} onChange={e=>setNewItem({...newItem,side:e.target.value})} placeholder="側(任意)" disabled={!editMode}/>
+                <input value={newItem.content} onChange={e=>setNewItem({...newItem,content:e.target.value})} placeholder="点検内容" onKeyDown={e=>e.key==='Enter'&&editMode&&addItem()} disabled={!editMode}/>
+                <button className="btn sm primary" onClick={addItem} disabled={!editMode} style={{width:40, padding:0}}>+</button>
+              </div>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+              <div style={{fontSize:13, color:'#5f5e5a'}}>登録済み点検項目 ({items.length}件)</div>
+              <button className="btn sm" onClick={initializeSheet} disabled={!editMode}>📥 初期項目を投入</button>
+            </div>
+            {items.map(it => (
+              <div key={it.id} className="item-mgr">
+                <div style={{fontSize:14, fontWeight:500, textAlign:'center'}}>{it.no}</div>
+                <div style={{fontSize:13}}>{it.place}</div>
+                <div style={{fontSize:12, color:'#5f5e5a'}}>{it.side || '—'}</div>
+                <div style={{fontSize:14}}>{it.content}</div>
+                <div style={{display:'flex', gap:4}}>
+                  <button className="btn sm" onClick={()=>setEditingItem({...it})} disabled={!editMode} style={{width:36, padding:0}}>✏</button>
+                  <button className="btn sm danger" onClick={()=>deleteItem(it.id)} disabled={!editMode} style={{width:36, padding:0}}>🗑</button>
+                </div>
+              </div>
+            ))}
+
+            {editingItem && (
+              <div className="modal-bg" onClick={e=>e.target===e.currentTarget && setEditingItem(null)}>
+                <div className="modal">
+                  <h3 style={{margin:'0 0 16px', fontSize:18}}>点検項目を編集 (No.{editingItem.no})</h3>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>場所</label>
+                    <input value={editingItem.place} onChange={e=>setEditingItem({...editingItem, place:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14}}/>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>側</label>
+                    <input value={editingItem.side} onChange={e=>setEditingItem({...editingItem, side:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14}}/>
+                  </div>
+                  <div style={{marginBottom:16}}>
+                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>内容</label>
+                    <textarea value={editingItem.content} onChange={e=>setEditingItem({...editingItem, content:e.target.value})} style={{width:'100%', minHeight:80, padding:'10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14, resize:'vertical'}}/>
+                  </div>
+                  <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
+                    <button className="btn" onClick={()=>setEditingItem(null)}>キャンセル</button>
+                    <button className="btn primary" onClick={saveEditItem}>💾 保存</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'monthly' && (
+          <div>
+            <div className="print-config no-print">
+              <h3 style={{margin:'0 0 12px', color:'#185fa5'}}>📅 月次まとめ出力</h3>
+              <p style={{margin:'0 0 14px', fontSize:14, color:'#5f5e5a'}}>
+                印刷: <b>{machine.name} → {machine.paperSize}サイズ横向き</b>。
+              </p>
+              <div style={{display:'flex', gap:12, alignItems:'flex-end', flexWrap:'wrap'}}>
+                <div className="field">
+                  <label style={{fontSize:13, color:'#5f5e5a', marginBottom:4, display:'block'}}>対象月</label>
+                  <input type="month" value={printMonth} onChange={e=>setPrintMonth(e.target.value)} style={{height:44, padding:'0 12px', fontSize:15, border:'1px solid rgba(0,0,0,0.3)', borderRadius:'8px'}}/>
+                </div>
+                <button className="btn primary" onClick={doPrintMonth}>🖨 印刷 ({machine.paperSize}横)</button>
+                <button className="btn success" onClick={exportExcel}>📊 Excel(.xlsx)に変換</button>
+              </div>
+            </div>
+
+            <div style={{padding:14, background:'#f5f4ef', borderRadius:'12px'}}>
+              <h3 style={{margin:'0 0 12px', fontSize:15}}>{pm}月のプレビュー</h3>
+              <div style={{overflowX:'auto', background:'#fff', padding:10, borderRadius:'8px'}}>
+                <table style={{width:'100%', borderCollapse:'collapse', fontSize:9, color:'#000'}}>
+                  <thead>
+                    <tr style={{background:'#d0d0d0'}}>
+                      <th style={{border:'1px solid #333', padding:'2px', minWidth:24}}>No.</th>
+                      <th style={{border:'1px solid #333', padding:'2px', minWidth:80}}>場所</th>
+                      <th style={{border:'1px solid #333', padding:'2px', minWidth:60}}>側</th>
+                      <th style={{border:'1px solid #333', padding:'2px', minWidth:200}}>内容</th>
+                      {Array.from({length: days}, (_, i) => (
+                        <th key={i} style={{border:'1px solid #333', padding:'2px', width:20, textAlign:'center'}}>{i+1}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map(it => (
+                      <tr key={it.id}>
+                        <td style={{border:'1px solid #333', padding:'2px', textAlign:'center'}}>{it.no}</td>
+                        <td style={{border:'1px solid #333', padding:'2px'}}>{it.place}</td>
+                        <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.side}</td>
+                        <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.content}</td>
+                        {Array.from({length: days}, (_, i) => {
+                          const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
+                          const rec = records[dk];
+                          const v = rec && rec.results ? rec.results[it.id] : null;
+                          return (
+                            <td key={i} style={{border:'1px solid #333', padding:'2px', textAlign:'center', fontWeight:'bold', fontSize:11,
+                              color: v==='ok' ? '#060' : v==='ng' ? '#c00' : '#000',
+                              background: v==='ng' ? '#ffe8e8' : '#fff'}}>
+                              {v==='ok'?'○':v==='ng'?'×':''}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div id="print-area">
+          <div style={{padding:'4mm', color:'#000', fontFamily:'sans-serif'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4, borderBottom:'2px solid #000', paddingBottom:3}}>
+              <h1 style={{margin:0, fontSize:'14pt'}}>{pm}月度 {machine.name}{machine.subtitle}</h1>
+              <div style={{fontSize:'9pt'}}>対象: {printMonth}</div>
+            </div>
+            <div style={{fontSize:'8pt', marginBottom:4}}>※記入方法: 確認をし異常なければ○、異常があれば×に備考に詳細記入。</div>
+            <table className="month-table">
+              <thead>
+                <tr>
+                  <th style={{width:'18pt'}}>No.</th>
+                  <th style={{width:'48pt'}}>場所</th>
+                  <th style={{width:'42pt'}}>側</th>
+                  <th>点検内容</th>
+                  {Array.from({length: days}, (_, i) => <th key={i} style={{width:18, textAlign:'center'}}>{i+1}</th>)}
+                  <th style={{width:'90pt'}}>備考</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(it => {
+                  const noteList = [];
+                  const cells = [];
+                  for (let i = 0; i < days; i++) {
+                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
+                    const rec = records[dk];
+                    const v = rec && rec.results ? rec.results[it.id] : null;
+                    const note = rec && rec.notes ? rec.notes[it.id] : null;
+                    if (note && v === 'ng') noteList.push(`${i+1}日:${note}`);
+                    cells.push(<td key={i} className={v==='ok'?'ok-cell':v==='ng'?'ng-cell':''}>{v==='ok'?'○':v==='ng'?'×':''}</td>);
+                  }
+                  return (
+                    <tr key={it.id}>
+                      <td style={{textAlign:'center'}}>{it.no}</td>
+                      <td>{it.place}</td>
+                      <td style={{fontSize:'6pt'}}>{it.side}</td>
+                      <td style={{fontSize:'7pt'}}>{it.content}</td>
+                      {cells}
+                      <td style={{fontSize:'6pt'}}>{noteList.join(' / ')}</td>
+                    </tr>
+                  );
+                })}
+                <tr>
+                  <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>点検者</td>
+                  {Array.from({length: days}, (_, i) => {
+                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
+                    const rec = records[dk];
+                    return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.inspector ? rec.inspector.slice(0,3) : ''}</td>;
+                  })}
+                  <td></td>
+                </tr>
+                <tr>
+                  <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>確認者</td>
+                  {Array.from({length: days}, (_, i) => {
+                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
+                    const rec = records[dk];
+                    return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.checker ? rec.checker.slice(0,3) : ''}</td>;
+                  })}
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
   }
 
-  const days = daysInMonth(printMonth);
-  const [py, pm] = printMonth.split('-');
-
-  return (
-    <div className="app-root">
-      <h2 className="sr-only">日常点検チェックシート</h2>
-
-      <div className="machine-selector no-print">
-        {Object.values(MACHINES).map(m => (
-          <button 
-            key={m.id} 
-            className={`machine-tab ${machineId === m.id ? 'active' : ''}`}
-            onClick={() => setMachineId(m.id)}
-          >
-            <i className={m.id === 'nid' ? 'ti ti-cpu' : 'ti ti-flask'} aria-hidden="true" style={{marginRight:6}}></i>
-            {m.name}
-            <span className="badge">{machineStats[m.id]}日分</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="sync-bar no-print">
-        <span className="sync-status">
-          <span className={`sync-dot ${syncStatus.state === 'online' ? 'online' : syncStatus.state === 'editing' ? 'editing' : syncStatus.state === 'error' ? 'error' : ''}`}></span>
-          <span>{syncStatus.message || '待機中'}</span>
-          {syncStatus.at && <span style={{color:'var(--color-text-tertiary)'}}>({syncStatus.at})</span>}
-        </span>
-        {SHEET_URL !== 'YOUR_SHEET_URL_HERE' && (
-          <a className="sheet-link" href={SHEET_URL} target="_blank" rel="noopener">
-            <i className="ti ti-table" aria-hidden="true"></i> シートを開く
-          </a>
-        )}
-        <button className="btn sm" onClick={refresh} style={{marginLeft:'auto'}}>
-          <i className="ti ti-refresh" aria-hidden="true"></i> 最新を取得
-        </button>
-        <button 
-          className={`btn sm ${editMode ? 'warning' : 'primary'}`}
-          onClick={() => {
-            if (editMode) setEditMode(false);
-            else if (confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')) setEditMode(true);
-          }}
-        >
-          {editMode ? <><i className="ti ti-lock" aria-hidden="true"></i> 編集を終える</> : <><i className="ti ti-edit" aria-hidden="true"></i> 編集モード</>}
-        </button>
-      </div>
-
-      <div className="tabs no-print">
-        <button className={`tab ${tab==='check'?'active':''}`} onClick={()=>setTab('check')}>
-          <i className="ti ti-clipboard-check" aria-hidden="true"></i> 点検実施
-        </button>
-        <button className={`tab ${tab==='history'?'active':''}`} onClick={()=>setTab('history')}>
-          <i className="ti ti-history" aria-hidden="true"></i> 履歴 ({dateList.length})
-        </button>
-        <button className={`tab ${tab==='items'?'active':''}`} onClick={()=>setTab('items')}>
-          <i className="ti ti-list-details" aria-hidden="true"></i> 項目管理
-        </button>
-        <button className={`tab ${tab==='monthly'?'active':''}`} onClick={()=>setTab('monthly')}>
-          <i className="ti ti-printer" aria-hidden="true"></i> 月次出力
-        </button>
-      </div>
-
-      {tab === 'check' && (
-        <>
-          <div className="top-bar no-print">
-            <div className="field">
-              <label>日付</label>
-              <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:160}}/>
-            </div>
-            <div className="field">
-              <label>点検者</label>
-              <input type="text" value={inspector} onChange={e=>updateMeta('inspector',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
-            </div>
-            <div className="field">
-              <label>確認者</label>
-              <input type="text" value={checker} onChange={e=>updateMeta('checker',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
-            </div>
-            <div style={{marginLeft:'auto', display:'flex', gap:8}}>
-              <button className="btn" onClick={exportDailyExcel}><i className="ti ti-file-spreadsheet" aria-hidden="true"></i>当日Excel</button>
-            </div>
-          </div>
-
-          <div className="summary no-print">
-            <div className="sc"><div className="sc-label">点検済み</div><div className="sc-value">{stats.done}<span style={{fontSize:14,color:'var(--color-text-secondary)'}}> / {stats.total}</span></div></div>
-            <div className="sc"><div className="sc-label">○ OK</div><div className="sc-value" style={{color:'var(--color-text-success)'}}>{stats.ok}</div></div>
-            <div className="sc"><div className="sc-label">× NG</div><div className="sc-value" style={{color:'var(--color-text-danger)'}}>{stats.ng}</div></div>
-            <div className="sc"><div className="sc-label">未点検</div><div className="sc-value" style={{color:'var(--color-text-tertiary)'}}>{stats.total - stats.done}</div></div>
-          </div>
-
-          <div className="progress-bar no-print">
-            <div className="progress-fill" style={{width: `${(stats.done/stats.total)*100}%`}}/>
-          </div>
-
-          <div className="no-print">
-            {Object.entries(grouped).map(([place, list]) => (
-              <div key={place}>
-                <div className="group-header">
-                  <i className="ti ti-folder" aria-hidden="true" style={{marginRight:6}}></i>
-                  {place} <span style={{fontWeight:400, marginLeft:6}}>({list.length}項目)</span>
-                </div>
-                {list.map(it => {
-                  const v = current.results && current.results[it.id];
-                  const note = (current.notes && current.notes[it.id]) || '';
-                  return (
-                    <div key={it.id} className={`check-row ${v==='ok'?'is-ok':v==='ng'?'is-ng':''} ${!editMode?'readonly':''}`}>
-                      <div className="row-no">{it.no}</div>
-                      <div className="row-body">
-                        <div>
-                          <span className="row-place">{it.place}</span>
-                          {it.side && <span className="row-side">{it.side}</span>}
-                        </div>
-                        <div className="row-content">{it.content}</div>
-                      </div>
-                      <div className="judge-group">
-                        <button className={`judge-btn ${v==='ok'?'ok-on':''}`} onClick={()=>setResult(it.id,'ok')} disabled={!editMode} aria-label="OK">○</button>
-                        <button className={`judge-btn ${v==='ng'?'ng-on':''}`} onClick={()=>setResult(it.id,'ng')} disabled={!editMode} aria-label="NG">×</button>
-                      </div>
-                      {v === 'ng' && (
-                        <div className="ng-note">
-                          <textarea value={note} onChange={e=>setNote(it.id, e.target.value)} placeholder="不具合内容を記入(任意)" disabled={!editMode}/>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-
-          <div className="no-print" style={{marginTop:20, display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8}}>
-            <button className="btn danger" onClick={clearDay} disabled={!editMode}><i className="ti ti-trash" aria-hidden="true"></i>この日の記録を削除</button>
-            <div style={{display:'flex', gap:8}}>
-              <button className="btn" onClick={exportDailyExcel}><i className="ti ti-file-spreadsheet" aria-hidden="true"></i>当日Excel</button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {tab === 'history' && (
-        <div>
-          <div style={{padding:14, background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-lg)', marginBottom:14, fontSize:14, color:'var(--color-text-secondary)'}}>
-            {machine.name}の履歴です。「最新を取得」で他の人の入力を反映、「シートを開く」で生データを直接確認できます。
-          </div>
-          {dateList.length === 0 ? (
-            <div className="empty">まだ点検記録がありません</div>
-          ) : dateList.map(d => {
-            const r = records[d];
-            let ok = 0, ng = 0;
-            Object.values(r.results || {}).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
-            return (
-              <div key={d} className="hist-row">
-                <div>
-                  <div className="hist-date">{d}</div>
-                  <div className="hist-sub">点検者: {r.inspector || '—'} / 確認者: {r.checker || '—'}</div>
-                </div>
-                <div><span className="pill pill-ok">○ {ok}</span> &nbsp; <span className="pill pill-ng">× {ng}</span></div>
-                <div style={{color:'var(--color-text-secondary)', fontSize:13}}>{ok+ng}/{items.length} 完了</div>
-                <div><button className="btn sm" onClick={()=>{setDate(d); setTab('check');}}><i className="ti ti-eye" aria-hidden="true"></i>開く</button></div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === 'items' && (
-        <div>
-          <div style={{padding:14, background:'var(--color-background-info)', borderRadius:'var(--border-radius-lg)', marginBottom:14}}>
-            <div style={{fontSize:14, fontWeight:500, color:'var(--color-text-info)', marginBottom:10}}>
-              <i className="ti ti-plus" aria-hidden="true"></i> {machine.name}の項目を追加 {!editMode && <span style={{color:'var(--color-text-warning)', fontWeight:400}}>(編集モードをONにしてください)</span>}
-            </div>
-            <div className="item-mgr" style={{background:'var(--color-background-primary)', gridTemplateColumns:'50px 130px 90px 1fr 40px'}}>
-              <div style={{fontSize:13, color:'var(--color-text-secondary)'}}>No.自動</div>
-              <input value={newItem.place} onChange={e=>setNewItem({...newItem,place:e.target.value})} placeholder="場所" disabled={!editMode}/>
-              <input value={newItem.side} onChange={e=>setNewItem({...newItem,side:e.target.value})} placeholder="側(任意)" disabled={!editMode}/>
-              <input value={newItem.content} onChange={e=>setNewItem({...newItem,content:e.target.value})} placeholder="点検内容" onKeyDown={e=>e.key==='Enter'&&editMode&&addItem()} disabled={!editMode}/>
-              <button className="btn sm primary" onClick={addItem} disabled={!editMode} style={{width:40, padding:0}}><i className="ti ti-plus" aria-hidden="true"></i></button>
-            </div>
-          </div>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
-            <div style={{fontSize:13, color:'var(--color-text-secondary)'}}>登録済み点検項目 ({items.length}件)</div>
-            <button className="btn sm" onClick={initializeSheet} disabled={!editMode}>
-              <i className="ti ti-database-import" aria-hidden="true"></i> 初期項目を投入
-            </button>
-          </div>
-          {items.map(it => (
-            <div key={it.id} className="item-mgr">
-              <div style={{fontSize:14, fontWeight:500, textAlign:'center'}}>{it.no}</div>
-              <div style={{fontSize:13}}>{it.place}</div>
-              <div style={{fontSize:12, color:'var(--color-text-secondary)'}}>{it.side || '—'}</div>
-              <div style={{fontSize:14}}>{it.content}</div>
-              <div style={{display:'flex', gap:4}}>
-                <button className="btn sm" onClick={()=>setEditingItem({...it})} disabled={!editMode} style={{width:36, padding:0}} aria-label="編集"><i className="ti ti-edit" aria-hidden="true"></i></button>
-                <button className="btn sm danger" onClick={()=>deleteItem(it.id)} disabled={!editMode} style={{width:36, padding:0}} aria-label="削除"><i className="ti ti-trash" aria-hidden="true"></i></button>
-              </div>
-            </div>
-          ))}
-
-          {editingItem && (
-            <div className="modal-bg" onClick={e=>e.target===e.currentTarget && setEditingItem(null)}>
-              <div className="modal">
-                <h3 style={{margin:'0 0 16px', fontSize:18}}>点検項目を編集 (No.{editingItem.no})</h3>
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:13, color:'var(--color-text-secondary)', display:'block', marginBottom:4}}>場所</label>
-                  <input value={editingItem.place} onChange={e=>setEditingItem({...editingItem, place:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-md)', boxSizing:'border-box', background:'var(--color-background-primary)', color:'var(--color-text-primary)', fontSize:14, fontFamily:'var(--font-sans)'}}/>
-                </div>
-                <div style={{marginBottom:12}}>
-                  <label style={{fontSize:13, color:'var(--color-text-secondary)', display:'block', marginBottom:4}}>側</label>
-                  <input value={editingItem.side} onChange={e=>setEditingItem({...editingItem, side:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-md)', boxSizing:'border-box', background:'var(--color-background-primary)', color:'var(--color-text-primary)', fontSize:14, fontFamily:'var(--font-sans)'}}/>
-                </div>
-                <div style={{marginBottom:16}}>
-                  <label style={{fontSize:13, color:'var(--color-text-secondary)', display:'block', marginBottom:4}}>内容</label>
-                  <textarea value={editingItem.content} onChange={e=>setEditingItem({...editingItem, content:e.target.value})} style={{width:'100%', minHeight:80, padding:'10px', border:'1px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-md)', boxSizing:'border-box', background:'var(--color-background-primary)', color:'var(--color-text-primary)', fontSize:14, fontFamily:'var(--font-sans)', resize:'vertical'}}/>
-                </div>
-                <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
-                  <button className="btn" onClick={()=>setEditingItem(null)}>キャンセル</button>
-                  <button className="btn primary" onClick={saveEditItem}><i className="ti ti-device-floppy" aria-hidden="true"></i>保存</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'monthly' && (
-        <div>
-          <div className="print-config no-print">
-            <h3><i className="ti ti-calendar-month" aria-hidden="true"></i> 月次まとめ出力</h3>
-            <p style={{margin:'0 0 14px', fontSize:14, color:'var(--color-text-secondary)'}}>
-              選択した月の点検記録を1枚にまとめて出力します。<br/>
-              印刷: <b>{machine.name} → {machine.paperSize}サイズ横向き</b>。
-            </p>
-            <div style={{display:'flex', gap:12, alignItems:'flex-end', flexWrap:'wrap'}}>
-              <div className="field">
-                <label style={{fontSize:13, color:'var(--color-text-secondary)', marginBottom:4, display:'block'}}>対象月</label>
-                <input type="month" value={printMonth} onChange={e=>setPrintMonth(e.target.value)} 
-                  style={{height:44, padding:'0 12px', fontSize:15, border:'1px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', background:'var(--color-background-primary)', fontFamily:'var(--font-sans)'}}/>
-              </div>
-              <button className="btn primary" onClick={doPrintMonth}>
-                <i className="ti ti-printer" aria-hidden="true"></i> 印刷 ({machine.paperSize}横)
-              </button>
-              <button className="btn success" onClick={exportExcel}>
-                <i className="ti ti-file-spreadsheet" aria-hidden="true"></i> Excel(.xlsx)に変換
-              </button>
-            </div>
-          </div>
-
-          <div style={{padding:14, background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-lg)'}}>
-            <h3 style={{margin:'0 0 12px', fontSize:15}}>{pm}月のプレビュー (画面用・縮小表示)</h3>
-            <div style={{overflowX:'auto', background:'#fff', padding:10, borderRadius:'var(--border-radius-md)'}}>
-              <table style={{width:'100%', borderCollapse:'collapse', fontSize:9, color:'#000'}}>
-                <thead>
-                  <tr style={{background:'#d0d0d0'}}>
-                    <th style={{border:'1px solid #333', padding:'2px', minWidth:24}}>No.</th>
-                    <th style={{border:'1px solid #333', padding:'2px', minWidth:80}}>場所</th>
-                    <th style={{border:'1px solid #333', padding:'2px', minWidth:60}}>側</th>
-                    <th style={{border:'1px solid #333', padding:'2px', minWidth:200}}>内容</th>
-                    {Array.from({length: days}, (_, i) => (
-                      <th key={i} style={{border:'1px solid #333', padding:'2px', width:20, textAlign:'center'}}>{i+1}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(it => (
-                    <tr key={it.id}>
-                      <td style={{border:'1px solid #333', padding:'2px', textAlign:'center'}}>{it.no}</td>
-                      <td style={{border:'1px solid #333', padding:'2px'}}>{it.place}</td>
-                      <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.side}</td>
-                      <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.content}</td>
-                      {Array.from({length: days}, (_, i) => {
-                        const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                        const rec = records[dk];
-                        const v = rec && rec.results ? rec.results[it.id] : null;
-                        return (
-                          <td key={i} style={{
-                            border:'1px solid #333', padding:'2px', textAlign:'center', 
-                            fontWeight:'bold', fontSize:11,
-                            color: v==='ok' ? '#060' : v==='ng' ? '#c00' : '#000',
-                            background: v==='ng' ? '#ffe8e8' : '#fff'
-                          }}>
-                            {v==='ok'?'○':v==='ng'?'×':''}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div id="print-area">
-        <div style={{padding:'4mm', color:'#000', fontFamily:'sans-serif'}}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4, borderBottom:'2px solid #000', paddingBottom:3}}>
-            <h1 style={{margin:0, fontSize:'14pt'}}>{pm}月度 {machine.name}{machine.subtitle}</h1>
-            <div style={{fontSize:'9pt'}}>対象: {printMonth}</div>
-          </div>
-          <div style={{fontSize:'8pt', marginBottom:4}}>
-            ※記入方法: 確認をし異常なければ○、異常があれば×に備考に詳細記入。
-          </div>
-          <table className="month-table">
-            <thead>
-              <tr>
-                <th style={{width:'18pt'}}>No.</th>
-                <th style={{width:'48pt'}}>場所</th>
-                <th style={{width:'42pt'}}>側</th>
-                <th>点検内容</th>
-                {Array.from({length: days}, (_, i) => (
-                  <th key={i} className="day-col">{i+1}</th>
-                ))}
-                <th style={{width:'90pt'}}>備考</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(it => {
-                const noteList = [];
-                const cells = [];
-                for (let i = 0; i < days; i++) {
-                  const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                  const rec = records[dk];
-                  const v = rec && rec.results ? rec.results[it.id] : null;
-                  const note = rec && rec.notes ? rec.notes[it.id] : null;
-                  if (note && v === 'ng') noteList.push(`${i+1}日:${note}`);
-                  cells.push(<td key={i} className={v==='ok'?'ok-cell':v==='ng'?'ng-cell':''}>{v==='ok'?'○':v==='ng'?'×':''}</td>);
-                }
-                return (
-                  <tr key={it.id}>
-                    <td style={{textAlign:'center'}}>{it.no}</td>
-                    <td>{it.place}</td>
-                    <td style={{fontSize:'6pt'}}>{it.side}</td>
-                    <td style={{fontSize:'7pt'}}>{it.content}</td>
-                    {cells}
-                    <td style={{fontSize:'6pt'}}>{noteList.join(' / ')}</td>
-                  </tr>
-                );
-              })}
-              <tr>
-                <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>点検者</td>
-                {Array.from({length: days}, (_, i) => {
-                  const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                  const rec = records[dk];
-                  return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.inspector ? rec.inspector.slice(0,3) : ''}</td>;
-                })}
-                <td></td>
-              </tr>
-              <tr>
-                <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>確認者</td>
-                {Array.from({length: days}, (_, i) => {
-                  const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                  const rec = records[dk];
-                  return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.checker ? rec.checker.slice(0,3) : ''}</td>;
-                })}
-                <td></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  // アプリ起動
+  try {
+    updateStatus('status-app', 'アプリ起動中...', true);
+    const root = ReactDOM.createRoot(document.getElementById('app'));
+    root.render(<App />);
+  } catch (e) {
+    window.showError('アプリ起動失敗', e.message + '\n\n' + (e.stack || ''));
+  }
 }
-
-const root = ReactDOM.createRoot(document.getElementById('app'));
-root.render(<App />);
 </script>
+
 </body>
 </html>
