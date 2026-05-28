@@ -131,8 +131,22 @@
 // ============================================================
 // エラーハンドリング
 // ============================================================
+// JSONPの<script>読み込みやクロスオリジンに起因する「Script error.」は
+// 詳細が取れず実害がないことが多いため、画面全体は潰さずコンソールにのみ記録する。
 window.addEventListener('error', function(e) {
-  showFatalError('エラーが発生しました', (e.message||'unknown') + '\n行: ' + (e.lineno||'?'));
+  var msg = e.message || '';
+  // クロスオリジンの "Script error." は無視(JSONP由来のことが多い)
+  if (msg === 'Script error.' || msg === 'Script error' || !msg) {
+    console.warn('無視可能なスクリプトエラー(JSONP由来の可能性):', e);
+    return;
+  }
+  // アプリがまだ描画されていない(初期化前)の致命的エラーのみ全画面表示
+  if (!window.__appRendered) {
+    showFatalError('エラーが発生しました', msg + '\n行: ' + (e.lineno||'?'));
+  } else {
+    // 描画後のエラーはコンソールのみ。画面は維持
+    console.error('実行時エラー:', e);
+  }
 });
 function showFatalError(title, detail) {
   var root = document.getElementById('root');
@@ -146,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -388,28 +402,6 @@ function refresh(){
   });
 }
 
-function saveRecordNow(dateKey, data){
-  var recs = {};
-  var cur = getRecords();
-  for(var k in cur) recs[k] = cur[k];
-  recs[dateKey] = data;
-  STATE.allRecords[STATE.machineId] = recs;
-  if(!isGasConfigured){ render(); return; }
-  pendingData = { machineId: STATE.machineId, date: dateKey, data: data };
-  STATE.sync = { state:'syncing', message:'保存待機中...', at:null };
-  render();
-  if(saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(function(){
-    if(!pendingData) return;
-    STATE.sync = { state:'syncing', message:'保存中...', at:null }; renderSyncBar();
-    callGAS('saveRecord', pendingData, function(){
-      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; renderSyncBar();
-    }, function(e){
-      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; renderSyncBar();
-    });
-  }, 800);
-}
-
 function saveItems(next){
   STATE.allItems[STATE.machineId] = next;
   if(!isGasConfigured){ render(); return; }
@@ -424,16 +416,16 @@ function saveItems(next){
   var idx = 0;
   function sendNext(){
     if(idx >= chunks.length){
-      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; renderSyncBar();
+      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
       return;
     }
     var ci = idx;
     callGAS('saveItemsChunk', { machineId: mid, items: chunks[ci], chunkIndex: ci, isLast: (ci===chunks.length-1) }, function(){
       idx++;
-      STATE.sync = { state:'syncing', message:'保存中... ('+idx+'/'+chunks.length+')', at:null }; renderSyncBar();
+      STATE.sync = { state:'syncing', message:'保存中... ('+idx+'/'+chunks.length+')', at:null }; updateSyncBar();
       sendNext();
     }, function(e){
-      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; renderSyncBar();
+      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
     });
   }
   sendNext();
@@ -441,7 +433,7 @@ function saveItems(next){
 
 function initializeSheet(){
   if(!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
-  STATE.sync = { state:'syncing', message:'初期化中...', at:null }; renderSyncBar();
+  STATE.sync = { state:'syncing', message:'初期化中...', at:null }; updateSyncBar();
   callGAS('init', {}, function(){
     // NID項目をチャンク送信 → 完了後 仕込み項目をチャンク送信
     sendItemsChunked('nid', NID_ITEMS, function(){
@@ -451,7 +443,7 @@ function initializeSheet(){
       }, syncErr);
     }, syncErr);
   }, syncErr);
-  function syncErr(e){ STATE.sync={state:'error',message:'初期化失敗: '+e.message,at:null}; renderSyncBar(); }
+  function syncErr(e){ STATE.sync={state:'error',message:'初期化失敗: '+e.message,at:null}; updateSyncBar(); }
 }
 
 // 指定機械の項目をチャンク分割送信する汎用関数
@@ -466,7 +458,7 @@ function sendItemsChunked(mid, items, onDone, onErr){
     var ci = idx;
     callGAS('saveItemsChunk', { machineId: mid, items: chunks[ci], chunkIndex: ci, isLast: (ci===chunks.length-1) }, function(){
       idx++;
-      STATE.sync = { state:'syncing', message:'初期化中... '+mid+' ('+idx+'/'+chunks.length+')', at:null }; renderSyncBar();
+      STATE.sync = { state:'syncing', message:'初期化中... '+mid+' ('+idx+'/'+chunks.length+')', at:null }; updateSyncBar();
       step();
     }, function(e){ onErr && onErr(e); });
   }
@@ -481,26 +473,99 @@ function setResult(itemId, value){
   var cur = clone(getCurrent());
   if(cur.results[itemId] === value) delete cur.results[itemId];
   else cur.results[itemId] = value;
-  cur.inspector = el('inp-inspector') ? el('inp-inspector').value : cur.inspector;
-  cur.checker = el('inp-checker') ? el('inp-checker').value : cur.checker;
-  saveRecordNow(STATE.date, cur);
+  var insp = el('inp-inspector');
+  var chk = el('inp-checker');
+  if(insp) cur.inspector = insp.value;
+  if(chk) cur.checker = chk.value;
+  // データ更新(画面全体は再描画しない)
+  storeRecord(STATE.date, cur);
+  // タップした行だけ更新
+  updateCheckRow(itemId);
+  // サマリー・進捗バーだけ更新
+  updateSummary();
+  // 保存をスケジュール
+  scheduleSave(STATE.date, cur);
+}
+
+// データだけ更新(描画なし)
+function storeRecord(dateKey, data){
+  var recs = {};
+  var cur = getRecords();
+  for(var k in cur) recs[k] = cur[k];
+  recs[dateKey] = data;
+  STATE.allRecords[STATE.machineId] = recs;
+}
+
+// 1行だけ再描画
+function updateCheckRow(itemId){
+  var row = document.querySelector('[data-row="'+itemId+'"]');
+  if(!row) return;
+  var cur = getCurrent();
+  var it = null;
+  var items = getItems();
+  for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ it=items[i]; break; } }
+  if(!it) return;
+  var v = cur.results[itemId];
+  var note = cur.notes[itemId]||'';
+  row.className = 'check-row ' + (v==='ok'?'is-ok':v==='ng'?'is-ng':'') + ' ' + (STATE.editMode?'':'readonly');
+  row.innerHTML = checkRowInner(it, v, note);
+  attachRowHandlers(row, it);
+}
+
+// サマリーと進捗バーだけ更新
+function updateSummary(){
+  var stats = getStats();
+  var sumEl = el('summary-box');
+  if(sumEl){
+    sumEl.innerHTML =
+      sc('点検済み', stats.done+' / '+stats.total, '') +
+      sc('○ OK', stats.ok, 'var(--c-success)') +
+      sc('× NG', stats.ng, 'var(--c-danger)') +
+      sc('未点検', stats.total-stats.done, 'var(--c-text3)');
+  }
+  var pf = el('progress-fill');
+  if(pf) pf.style.width = (stats.total?(stats.done/stats.total*100):0)+'%';
 }
 function setNote(itemId, text){
   if(!STATE.editMode) return;
   var cur = clone(getCurrent());
   cur.notes[itemId] = text;
-  saveRecordNow(STATE.date, cur);
+  storeRecord(STATE.date, cur);
+  scheduleSave(STATE.date, cur);
 }
 function updateMeta(field, value){
   if(!STATE.editMode) return;
   var cur = clone(getCurrent());
   cur[field] = value;
-  saveRecordNow(STATE.date, cur);
+  storeRecord(STATE.date, cur);
+  scheduleSave(STATE.date, cur);
 }
 function clearDay(){
   if(!STATE.editMode) return;
   if(!confirm(STATE.date+'の点検記録を削除しますか?')) return;
-  saveRecordNow(STATE.date, { results:{}, notes:{}, inspector:'', checker:'' });
+  storeRecord(STATE.date, { results:{}, notes:{}, inspector:'', checker:'' });
+  scheduleSave(STATE.date, { results:{}, notes:{}, inspector:'', checker:'' });
+  render();
+}
+
+// 保存スケジュール(debounce)。画面再描画はしない。
+function scheduleSave(dateKey, data){
+  if(!isGasConfigured){ return; }
+  STATE.sync = { state:'syncing', message:'保存待機中...', at:null };
+  updateSyncBar();
+  pendingData = { machineId: STATE.machineId, date: dateKey, data: data };
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    if(!pendingData) return;
+    var sending = pendingData;
+    pendingData = null;
+    STATE.sync = { state:'syncing', message:'保存中...', at:null }; updateSyncBar();
+    callGAS('saveRecord', sending, function(){
+      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
+    }, function(e){
+      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
+    });
+  }, 800);
 }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
@@ -655,6 +720,7 @@ function render(){
   else if(STATE.tab==='items') html += renderItems();
   else if(STATE.tab==='monthly') html += renderMonthly();
   root.innerHTML = html;
+  window.__appRendered = true;
 
   if(STATE.editingItem) renderEditModal();
   attachHandlers();
@@ -699,14 +765,14 @@ function renderCheck(){
   h += '<div class="field"><label>確認者</label><input type="text" id="inp-checker" value="'+esc(cur.checker)+'" placeholder="氏名" '+dis+'></div>';
   h += '</div>';
 
-  h += '<div class="summary no-print">';
+  h += '<div class="summary no-print" id="summary-box">';
   h += sc('点検済み', stats.done+' / '+stats.total, '');
   h += sc('○ OK', stats.ok, 'var(--c-success)');
   h += sc('× NG', stats.ng, 'var(--c-danger)');
   h += sc('未点検', stats.total-stats.done, 'var(--c-text3)');
   h += '</div>';
 
-  h += '<div class="progress-bar no-print"><div class="progress-fill" style="width:'+(stats.total?(stats.done/stats.total*100):0)+'%"></div></div>';
+  h += '<div class="progress-bar no-print"><div class="progress-fill" id="progress-fill" style="width:'+(stats.total?(stats.done/stats.total*100):0)+'%"></div></div>';
 
   h += '<div class="no-print">';
   var gr = getGrouped();
@@ -717,17 +783,8 @@ function renderCheck(){
       var v = cur.results[it.id];
       var note = cur.notes[it.id]||'';
       var cls = v==='ok'?'is-ok':v==='ng'?'is-ng':'';
-      h += '<div class="check-row '+cls+' '+(ed?'':'readonly')+'">';
-      h += '<div class="row-no">'+it.no+'</div>';
-      h += '<div class="row-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
-      h += '<div class="row-content">'+esc(it.content)+'</div></div>';
-      h += '<div class="judge-group">';
-      h += '<button class="judge-btn '+(v==='ok'?'ok-on':'')+'" data-result="ok" data-id="'+it.id+'" '+dis+'>○</button>';
-      h += '<button class="judge-btn '+(v==='ng'?'ng-on':'')+'" data-result="ng" data-id="'+it.id+'" '+dis+'>×</button>';
-      h += '</div>';
-      if(v==='ng'){
-        h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
-      }
+      h += '<div class="check-row '+cls+' '+(ed?'':'readonly')+'" data-row="'+it.id+'">';
+      h += checkRowInner(it, v, note);
       h += '</div>';
     });
   });
@@ -737,6 +794,35 @@ function renderCheck(){
   h += '<button class="btn danger" id="btn-clearday" '+dis+'>🗑 この日の記録を削除</button>';
   h += '</div>';
   return h;
+}
+
+// 1行分の中身(check-rowの内側)を生成
+function checkRowInner(it, v, note){
+  var dis = STATE.editMode ? '' : 'disabled';
+  var h = '';
+  h += '<div class="row-no">'+it.no+'</div>';
+  h += '<div class="row-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
+  h += '<div class="row-content">'+esc(it.content)+'</div></div>';
+  h += '<div class="judge-group">';
+  h += '<button class="judge-btn '+(v==='ok'?'ok-on':'')+'" data-result="ok" data-id="'+it.id+'" '+dis+'>○</button>';
+  h += '<button class="judge-btn '+(v==='ng'?'ng-on':'')+'" data-result="ng" data-id="'+it.id+'" '+dis+'>×</button>';
+  h += '</div>';
+  if(v==='ng'){
+    h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
+  }
+  return h;
+}
+
+// 1行内のボタン・テキストエリアにハンドラを付ける
+function attachRowHandlers(row, it){
+  var btns = row.querySelectorAll('[data-result]');
+  for(var i=0;i<btns.length;i++){
+    btns[i].onclick = (function(id,val){ return function(){ setResult(id,val); }; })(btns[i].getAttribute('data-id'), btns[i].getAttribute('data-result'));
+  }
+  var ta = row.querySelector('[data-note]');
+  if(ta){
+    ta.onchange = (function(id){ return function(){ setNote(id, this.value); }; })(ta.getAttribute('data-note'));
+  }
 }
 function sc(label, value, color){
   return '<div class="sc"><div class="sc-label">'+label+'</div><div class="sc-value" style="color:'+(color||'inherit')+'">'+value+'</div></div>';
@@ -954,7 +1040,7 @@ function attachHandlers(){
   if(el('btn-excel')) el('btn-excel').onclick = exportExcel;
 }
 
-// renderSyncBar を単独更新できるよう修正
+// 同期バーのHTML文字列を生成(render内で使う)
 function renderSyncBar(){
   var s = STATE.sync;
   var h = '<div class="sync-bar no-print" id="sync-bar">';
@@ -965,9 +1051,19 @@ function renderSyncBar(){
   h += '<button class="btn sm" id="btn-refresh" style="margin-left:auto">🔄 最新を取得</button>';
   h += '<button class="btn sm '+(STATE.editMode?'warning':'primary')+'" id="btn-editmode">'+(STATE.editMode?'🔒 編集を終える':'✏ 編集モード')+'</button>';
   h += '</div>';
-  var existing = el('sync-bar');
-  if(existing){ existing.outerHTML = h; attachSyncHandlers(); return ''; }
   return h;
+}
+
+// 同期バーのDOMだけを部分更新(画面全体は再描画しない)
+function updateSyncBar(){
+  var existing = el('sync-bar');
+  if(!existing || !existing.parentNode) return;
+  var tmp = document.createElement('div');
+  tmp.innerHTML = renderSyncBar();
+  var fresh = tmp.firstChild;
+  if(!fresh) return;
+  existing.parentNode.replaceChild(fresh, existing);
+  attachSyncHandlers();
 }
 
 // ============================================================
