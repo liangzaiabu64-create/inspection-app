@@ -5,169 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>日常点検チェックシート</title>
 <style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 16px;
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
-    background: #ebe9e2;
-    color: #1a1a1a;
-  }
-  #app-container {
-    max-width: 1100px; margin: 0 auto;
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 20px;
-    min-height: 200px;
-  }
-  #initial-loader {
-    text-align: center;
-    padding: 60px 20px;
-    color: #5f5e5a;
-  }
-  #initial-loader h1 {
-    font-size: 18px;
-    margin: 0 0 16px;
-  }
-  #initial-loader .spinner {
-    display: inline-block;
-    width: 32px; height: 32px;
-    border: 3px solid #e0e0e0;
-    border-top-color: #185fa5;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #error-display {
-    display: none;
-    padding: 20px;
-    background: #fcebeb;
-    border: 1px solid #f7c1c1;
-    border-radius: 12px;
-    color: #a32d2d;
-    margin-bottom: 16px;
-  }
-  #error-display h3 { margin: 0 0 8px; font-size: 16px; }
-  #error-display pre { 
-    background: rgba(0,0,0,0.05); 
-    padding: 10px; 
-    border-radius: 6px; 
-    font-size: 12px;
-    white-space: pre-wrap;
-    word-break: break-all;
-    margin: 8px 0;
-  }
-  #lib-status {
-    font-size: 12px;
-    color: #5f5e5a;
-    margin-top: 16px;
-  }
-  #lib-status .check { color: #3b6d11; }
-  #lib-status .fail { color: #a32d2d; font-weight: bold; }
-</style>
-</head>
-<body>
-<div id="app-container">
-  <div id="error-display"></div>
-  <div id="initial-loader">
-    <h1>日常点検アプリ 読み込み中...</h1>
-    <div class="spinner"></div>
-    <div id="lib-status">
-      <div id="status-react">React 読み込み中...</div>
-      <div id="status-babel">Babel 読み込み中...</div>
-      <div id="status-xlsx">XLSX 読み込み中...</div>
-      <div id="status-app" style="margin-top:8px;">アプリ初期化待機中...</div>
-    </div>
-  </div>
-  <div id="app"></div>
-</div>
-
-<script>
-  // エラー表示用ヘルパー
-  window.showError = function(title, detail) {
-    var el = document.getElementById('error-display');
-    var loader = document.getElementById('initial-loader');
-    if (loader) loader.style.display = 'none';
-    if (el) {
-      el.style.display = 'block';
-      el.innerHTML = '<h3>⚠ ' + title + '</h3><pre>' + 
-        String(detail).replace(/</g,'&lt;').replace(/>/g,'&gt;') + 
-        '</pre><p style="font-size:13px;margin-top:12px;">この内容をスクリーンショットで撮って共有してください。</p>';
-    }
-  };
-
-  // グローバルエラーキャッチ
-  window.addEventListener('error', function(e) {
-    window.showError('エラーが発生しました', 
-      (e.message || 'unknown') + '\n\nファイル: ' + (e.filename || 'unknown') + 
-      '\n行: ' + (e.lineno || '?') + ':' + (e.colno || '?'));
-  });
-  window.addEventListener('unhandledrejection', function(e) {
-    window.showError('通信または処理エラー', 
-      'reason: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
-  });
-
-  // ライブラリ読み込み状態を監視
-  function updateStatus(id, label, ok) {
-    var el = document.getElementById(id);
-    if (el) {
-      el.innerHTML = (ok ? '<span class="check">✓</span> ' : '<span class="fail">✗</span> ') + label;
-    }
-  }
-
-  function checkLibs() {
-    updateStatus('status-react', 'React: ' + (typeof React !== 'undefined' ? 'OK' : '未読み込み'), typeof React !== 'undefined');
-    updateStatus('status-babel', 'Babel: ' + (typeof Babel !== 'undefined' ? 'OK' : '未読み込み'), typeof Babel !== 'undefined');
-    updateStatus('status-xlsx', 'XLSX: ' + (typeof XLSX !== 'undefined' ? 'OK' : '未読み込み'), typeof XLSX !== 'undefined');
-    
-    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-      window.showError('Reactライブラリが読み込めません', 
-        '会社のネットワークが cdnjs.cloudflare.com へのアクセスをブロックしている可能性があります。\n\n対策: 別のブラウザで試す / IT部門に cdnjs.cloudflare.com の許可を依頼 / ライブラリ同梱版の作成を依頼');
-      return false;
-    }
-    if (typeof Babel === 'undefined') {
-      window.showError('Babelライブラリが読み込めません', 
-        '会社のネットワークが cdnjs.cloudflare.com へのアクセスをブロックしている可能性があります。');
-      return false;
-    }
-    if (typeof XLSX === 'undefined') {
-      // XLSXは必須ではないので警告のみ。アプリは動かす
-      console.warn('XLSX読み込み失敗 - Excel出力機能は使えません');
-    }
-    return true;
-  }
-</script>
-
-<!-- CDNライブラリ(すべて cdnjs.cloudflare.com に統一) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" onerror="window.showError('React読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。会社のネットワーク制限の可能性があります。')"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" onerror="window.showError('ReactDOM読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。')"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js" onerror="window.showError('Babel読み込み失敗', 'cdnjs.cloudflare.com にアクセスできません。')"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="console.warn('XLSX読み込み失敗')"></script>
-
-<style>
   :root {
-    --color-background-primary: #ffffff;
-    --color-background-secondary: #f5f4ef;
-    --color-background-tertiary: #ebe9e2;
-    --color-background-info: #e6f1fb;
-    --color-background-danger: #fcebeb;
-    --color-background-success: #eaf3de;
-    --color-background-warning: #faeeda;
-    --color-text-primary: #1a1a1a;
-    --color-text-secondary: #5f5e5a;
-    --color-text-tertiary: #888780;
-    --color-text-info: #185fa5;
-    --color-text-danger: #a32d2d;
-    --color-text-success: #3b6d11;
-    --color-text-warning: #854f0b;
-    --color-border-tertiary: rgba(0,0,0,0.15);
-    --color-border-secondary: rgba(0,0,0,0.3);
-    --color-border-info: #b5d4f4;
-    --color-border-danger: #f7c1c1;
-    --color-border-success: #c0dd97;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
-    --border-radius-md: 8px;
-    --border-radius-lg: 12px;
+    --c-bg: #ffffff; --c-bg2: #f5f4ef; --c-bg3: #ebe9e2;
+    --c-info-bg: #e6f1fb; --c-danger-bg: #fcebeb; --c-success-bg: #eaf3de; --c-warn-bg: #faeeda;
+    --c-text: #1a1a1a; --c-text2: #5f5e5a; --c-text3: #888780;
+    --c-info: #185fa5; --c-danger: #a32d2d; --c-success: #3b6d11; --c-warn: #854f0b;
+    --c-bd: rgba(0,0,0,0.15); --c-bd2: rgba(0,0,0,0.3);
+    --c-info-bd: #b5d4f4; --c-danger-bd: #f7c1c1; --c-success-bd: #c0dd97;
+    --font: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    --r-md: 8px; --r-lg: 12px;
   }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font-family: var(--font); background: var(--c-bg3); color: var(--c-text); }
+  #wrap { max-width: 1100px; margin: 0 auto; background: var(--c-bg); border-radius: var(--r-lg); padding: 20px; min-height: 200px; }
 
   @media print {
     body * { visibility: hidden; }
@@ -178,864 +28,887 @@
   #print-area { display: none; }
   #print-area.show { display: block; }
 
-  .machine-selector { display: flex; gap: 8px; margin-bottom: 14px; padding: 6px; background: var(--color-background-tertiary); border-radius: var(--border-radius-lg); }
-  .machine-tab { flex: 1; padding: 14px 18px; font-size: 16px; font-weight: 500; border: none; border-radius: var(--border-radius-md); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-family: var(--font-sans); }
-  .machine-tab.active { background: var(--color-background-primary); color: var(--color-text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-  .machine-tab .badge { display: inline-block; padding: 2px 8px; font-size: 11px; background: var(--color-background-secondary); color: var(--color-text-secondary); border-radius: var(--border-radius-md); margin-left: 6px; }
-  .machine-tab.active .badge { background: var(--color-background-info); color: var(--color-text-info); }
+  .err-box { padding: 20px; background: var(--c-danger-bg); border: 1px solid var(--c-danger-bd); border-radius: var(--r-lg); color: var(--c-danger); margin-bottom: 16px; }
+  .err-box h3 { margin: 0 0 8px; }
+  .err-box pre { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 
-  .app-root { padding: 0.5rem 0; font-size: 15px; }
+  .machine-selector { display: flex; gap: 8px; margin-bottom: 14px; padding: 6px; background: var(--c-bg3); border-radius: var(--r-lg); }
+  .machine-tab { flex: 1; padding: 14px 18px; font-size: 16px; font-weight: 500; border: none; border-radius: var(--r-md); background: transparent; color: var(--c-text2); cursor: pointer; font-family: var(--font); }
+  .machine-tab.active { background: var(--c-bg); color: var(--c-text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .machine-tab .badge { display: inline-block; padding: 2px 8px; font-size: 11px; background: var(--c-bg2); color: var(--c-text2); border-radius: var(--r-md); margin-left: 6px; }
+  .machine-tab.active .badge { background: var(--c-info-bg); color: var(--c-info); }
 
-  .sync-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); font-size: 13px; flex-wrap: wrap; }
+  .sync-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; background: var(--c-bg2); border-radius: var(--r-md); font-size: 13px; flex-wrap: wrap; }
   .sync-status { display: inline-flex; align-items: center; gap: 6px; }
-  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-tertiary); }
-  .sync-dot.online { background: var(--color-text-success); }
-  .sync-dot.editing { background: var(--color-text-warning); }
-  .sync-dot.error { background: var(--color-text-danger); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-text3); }
+  .sync-dot.online { background: var(--c-success); }
+  .sync-dot.editing { background: var(--c-warn); }
+  .sync-dot.syncing { background: var(--c-info); }
+  .sync-dot.error { background: var(--c-danger); }
+  .sheet-link { padding: 6px 12px; font-size: 13px; background: var(--c-success-bg); color: var(--c-success); border-radius: var(--r-md); text-decoration: none; }
 
-  .sheet-link { margin-left: 8px; padding: 4px 10px; font-size: 12px; background: var(--color-background-success); color: var(--color-text-success); border-radius: var(--border-radius-md); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-
-  .top-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding: 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); margin-bottom: 14px; }
-  .top-bar input, .top-bar select { height: 44px; font-size: 15px; padding: 0 12px; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); box-sizing: border-box; }
-  .top-bar label { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; display: block; }
+  .top-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding: 14px; background: var(--c-bg2); border-radius: var(--r-lg); margin-bottom: 14px; }
+  .top-bar input { height: 44px; font-size: 15px; padding: 0 12px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); box-sizing: border-box; width: 160px; }
+  .top-bar input:disabled { background: var(--c-bg2); }
+  .top-bar label { font-size: 13px; color: var(--c-text2); margin-bottom: 4px; display: block; }
   .field { display: flex; flex-direction: column; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-  .tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); min-height: 48px; font-family: var(--font-sans); }
-  .tab.active { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
+  .tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; background: transparent; color: var(--c-text2); border: 1px solid var(--c-bd); border-radius: var(--r-md); min-height: 48px; font-family: var(--font); }
+  .tab.active { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
 
   .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-  .sc { background: var(--color-background-secondary); padding: 12px 14px; border-radius: var(--border-radius-md); }
-  .sc-label { font-size: 12px; color: var(--color-text-secondary); }
+  .sc { background: var(--c-bg2); padding: 12px 14px; border-radius: var(--r-md); }
+  .sc-label { font-size: 12px; color: var(--c-text2); }
   .sc-value { font-size: 26px; font-weight: 500; margin-top: 2px; line-height: 1.1; }
 
-  .group-header { background: var(--color-background-secondary); padding: 8px 14px; border-radius: var(--border-radius-md); font-size: 14px; font-weight: 500; color: var(--color-text-secondary); margin: 14px 0 8px; }
-  .check-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 14px; background: var(--color-background-primary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); margin-bottom: 8px; }
-  .check-row.is-ng { border-color: var(--color-border-danger); background: var(--color-background-danger); }
-  .check-row.is-ok { border-color: var(--color-border-success); }
+  .group-header { background: var(--c-bg2); padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 500; color: var(--c-text2); margin: 14px 0 8px; }
+  .check-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 14px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-lg); margin-bottom: 8px; }
+  .check-row.is-ng { border-color: var(--c-danger-bd); background: var(--c-danger-bg); }
+  .check-row.is-ok { border-color: var(--c-success-bd); }
   .check-row.readonly { opacity: 0.85; }
-  .row-no { width: 44px; height: 44px; border-radius: 50%; background: var(--color-background-secondary); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; color: var(--color-text-secondary); }
+  .row-no { width: 44px; height: 44px; border-radius: 50%; background: var(--c-bg2); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; color: var(--c-text2); }
   .row-body { min-width: 0; }
-  .row-place { font-size: 12px; color: var(--color-text-secondary); background: var(--color-background-secondary); padding: 3px 10px; border-radius: var(--border-radius-md); display: inline-block; margin-bottom: 6px; }
-  .row-side { font-size: 12px; color: var(--color-text-info); background: var(--color-background-info); padding: 3px 10px; border-radius: var(--border-radius-md); display: inline-block; margin-bottom: 6px; margin-left: 4px; }
-  .row-content { font-size: 15px; line-height: 1.5; color: var(--color-text-primary); word-break: break-word; }
+  .row-place { font-size: 12px; color: var(--c-text2); background: var(--c-bg2); padding: 3px 10px; border-radius: var(--r-md); display: inline-block; margin-bottom: 6px; }
+  .row-side { font-size: 12px; color: var(--c-info); background: var(--c-info-bg); padding: 3px 10px; border-radius: var(--r-md); display: inline-block; margin-bottom: 6px; margin-left: 4px; }
+  .row-content { font-size: 15px; line-height: 1.5; color: var(--c-text); word-break: break-word; }
 
   .judge-group { display: flex; gap: 8px; }
-  .judge-btn { width: 64px; height: 56px; border-radius: var(--border-radius-md); font-size: 24px; font-weight: 500; cursor: pointer; border: 1px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; font-family: var(--font-sans); }
+  .judge-btn { width: 64px; height: 56px; border-radius: var(--r-md); font-size: 24px; font-weight: 500; cursor: pointer; border: 1px solid var(--c-bd2); background: var(--c-bg); color: var(--c-text2); display: flex; align-items: center; justify-content: center; font-family: var(--font); }
   .judge-btn:disabled { cursor: not-allowed; opacity: 0.6; }
-  .judge-btn.ok-on { background: var(--color-background-success); color: var(--color-text-success); border-color: var(--color-border-success); border-width: 2px; }
-  .judge-btn.ng-on { background: var(--color-background-danger); color: var(--color-text-danger); border-color: var(--color-border-danger); border-width: 2px; }
+  .judge-btn.ok-on { background: var(--c-success-bg); color: var(--c-success); border-color: var(--c-success-bd); border-width: 2px; }
+  .judge-btn.ng-on { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-bd); border-width: 2px; }
 
-  .ng-note { grid-column: 1 / -1; margin-top: 8px; padding: 10px; background: var(--color-background-primary); border: 1px solid var(--color-border-danger); border-radius: var(--border-radius-md); }
-  .ng-note textarea { width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); font-size: 14px; font-family: var(--font-sans); background: var(--color-background-primary); color: var(--color-text-primary); box-sizing: border-box; resize: vertical; }
-  .ng-note textarea:disabled { background: var(--color-background-secondary); cursor: not-allowed; }
+  .ng-note { grid-column: 1 / -1; margin-top: 8px; padding: 10px; background: var(--c-bg); border: 1px solid var(--c-danger-bd); border-radius: var(--r-md); }
+  .ng-note textarea { width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid var(--c-bd); border-radius: var(--r-md); font-size: 14px; font-family: var(--font); background: var(--c-bg); color: var(--c-text); box-sizing: border-box; resize: vertical; }
 
-  .btn { height: 48px; padding: 0 18px; font-size: 15px; font-weight: 500; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); }
+  .btn { height: 48px; padding: 0 18px; font-size: 15px; font-weight: 500; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); cursor: pointer; font-family: var(--font); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn.primary { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-border-info); }
-  .btn.danger { color: var(--color-text-danger); }
-  .btn.success { background: var(--color-background-success); color: var(--color-text-success); border-color: var(--color-border-success); }
-  .btn.warning { background: var(--color-background-warning); color: var(--color-text-warning); border-color: #FAC775; }
+  .btn.primary { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
+  .btn.danger { color: var(--c-danger); }
+  .btn.success { background: var(--c-success-bg); color: var(--c-success); border-color: var(--c-success-bd); }
+  .btn.warning { background: var(--c-warn-bg); color: var(--c-warn); border-color: #FAC775; }
   .btn.sm { height: 36px; font-size: 13px; padding: 0 12px; }
 
-  .hist-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; background: var(--color-background-primary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 8px; }
-  .pill { display: inline-block; padding: 2px 10px; border-radius: var(--border-radius-md); font-size: 12px; font-weight: 500; }
-  .pill-ok { background: var(--color-background-success); color: var(--color-text-success); }
-  .pill-ng { background: var(--color-background-danger); color: var(--color-text-danger); }
+  .hist-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-md); margin-bottom: 8px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; }
+  .pill-ok { background: var(--c-success-bg); color: var(--c-success); }
+  .pill-ng { background: var(--c-danger-bg); color: var(--c-danger); }
 
-  .item-mgr { display: grid; grid-template-columns: 50px 130px 90px 1fr 80px; gap: 8px; align-items: center; padding: 10px 12px; background: var(--color-background-primary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 6px; }
-  .item-mgr input { width: 100%; height: 38px; padding: 0 10px; font-size: 14px; border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); font-family: var(--font-sans); box-sizing: border-box; }
+  .item-mgr { display: grid; grid-template-columns: 50px 130px 90px 1fr 80px; gap: 8px; align-items: center; padding: 10px 12px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-md); margin-bottom: 6px; }
+  .item-mgr input { width: 100%; height: 38px; padding: 0 10px; font-size: 14px; border: 1px solid var(--c-bd); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); box-sizing: border-box; }
 
-  .empty { text-align: center; padding: 40px 20px; color: var(--color-text-secondary); font-size: 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); }
-  .progress-bar { height: 8px; background: var(--color-background-secondary); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-  .progress-fill { height: 100%; background: var(--color-text-success); }
+  .empty { text-align: center; padding: 40px 20px; color: var(--c-text2); font-size: 14px; background: var(--c-bg2); border-radius: var(--r-lg); }
+  .progress-bar { height: 8px; background: var(--c-bg2); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+  .progress-fill { height: 100%; background: var(--c-success); transition: width 0.3s; }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-  .modal { background: var(--color-background-primary); border-radius: var(--border-radius-lg); padding: 24px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal { background: var(--c-bg); border-radius: var(--r-lg); padding: 24px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal label { font-size: 13px; color: var(--c-text2); display: block; margin-bottom: 4px; }
+  .modal input, .modal textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--c-bd); border-radius: var(--r-md); font-size: 14px; font-family: var(--font); box-sizing: border-box; margin-bottom: 12px; }
 
-  .print-config { padding: 18px; background: var(--color-background-info); border: 1px solid var(--color-border-info); border-radius: var(--border-radius-lg); margin-bottom: 16px; }
+  .print-config { padding: 18px; background: var(--c-info-bg); border: 1px solid var(--c-info-bd); border-radius: var(--r-lg); margin-bottom: 16px; }
 
   .month-table { width: 100%; border-collapse: collapse; font-size: 7pt; font-family: sans-serif; color: #000; }
   .month-table th, .month-table td { border: 1px solid #333; padding: 1px 2px; }
   .month-table thead th { background: #d0d0d0; font-weight: bold; }
   .month-table .ok-cell { color: #060; font-weight: bold; text-align: center; font-size: 10pt; }
   .month-table .ng-cell { color: #c00; font-weight: bold; text-align: center; font-size: 10pt; background: #ffe8e8; }
+
+  .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #e0e0e0; border-top-color: var(--c-info); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+</head>
+<body>
+<div id="wrap">
+  <div id="root">
+    <div class="empty"><div class="spinner"></div><div style="margin-top:12px;">読み込み中...</div></div>
+  </div>
+  <div id="print-area"></div>
+</div>
 
-<script type="text/babel" data-presets="react">
-// ライブラリチェック
-if (!checkLibs()) {
-  // エラー表示済み
-} else {
-  // ローダーを非表示
-  var loader = document.getElementById('initial-loader');
-  if (loader) loader.style.display = 'none';
-
-  const { useState, useEffect, useMemo, useRef } = React;
-
-  // ★★★ ここを自分の Apps Script ウェブアプリ URL に書き換えてください ★★★
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec
-';
-  const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit
-';
-
-  const isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
-
-  const NID_ITEMS = [
-    { no: 1, place: 'RUN IN', side: '', content: '油圧シリンダからオイル漏れがないか' },
-    { no: 2, place: '1次エージング', side: '', content: 'オイルタンク油面計のフロートがゲージ内にあり、オイルが減っていないか' },
-    { no: 3, place: 'フィーダー', side: 'リモル側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
-    { no: 4, place: 'フィーダー', side: '乾燥室側', content: '羽根出入位置が正常か(停止線±5㎜以内)' },
-    { no: 5, place: 'フィーダー', side: 'リモル側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
-    { no: 6, place: 'フィーダー', side: '乾燥室側', content: '羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか' },
-    { no: 7, place: 'フィーダー', side: 'リモル側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-    { no: 8, place: 'フィーダー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-    { no: 9, place: 'フィーダー', side: 'リモル側', content: 'クランプ爪が変形していないか' },
-    { no: 10, place: 'フィーダー', side: '乾燥室側', content: 'クランプ爪が変形していないか' },
-    { no: 11, place: 'フィーダー', side: 'リモル側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
-    { no: 12, place: 'フィーダー', side: '乾燥室側', content: 'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか' },
-    { no: 13, place: 'フィーダー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
-    { no: 14, place: 'フィーダー', side: '', content: 'クランプ通過センサーが反応しているか(4か所)' },
-    { no: 15, place: 'フィーダー', side: '', content: 'トレー1枚ずつの切離しタイミングとウォーキングビームの搬送タイミングが適正か' },
-    { no: 16, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-    { no: 17, place: 'フィーダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-    { no: 18, place: 'フィーダー', side: '', content: '樹脂ローラー、鉄ローラーが回転しているか(4か所)' },
-    { no: 19, place: 'デモルダー', side: '', content: '反転部アームの角度がトレーに対して平行か' },
-    { no: 20, place: 'デモルダー', side: '', content: '反転部でのトレーのばたつきがないか' },
-    { no: 21, place: 'デモルダー', side: '', content: 'トレーが持ち上がる前に次のトレーが動いてないか' },
-    { no: 22, place: 'デモルダー', side: '', content: 'デモルダーの異音、振動がないか' },
-    { no: 23, place: 'デモルダー', side: '', content: '反転部からエアー漏れの音がしていないか' },
-    { no: 24, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-    { no: 25, place: 'デモルダー', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-    { no: 26, place: 'デモルダー', side: '', content: '反転部のエアー圧が0.5±0.05MPaか' },
-    { no: 27, place: 'センターチェーン', side: '', content: 'デモルダー、センターチェーンの乗継がスムーズか' },
-    { no: 28, place: 'センターチェーン', side: '', content: 'センターチェーン、スターチバックの乗継がスムーズか' },
-    { no: 29, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-    { no: 30, place: 'スターチバック', side: '', content: '入口のウォーキングビーム爪がトレーを下から持上げていないか' },
-    { no: 31, place: 'スターチバック', side: '', content: '樹脂ローラーが回転しているか(4か所)' },
-    { no: 32, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-    { no: 33, place: 'スターチバック', side: '', content: '出口のウォーキングビーム爪がトレーを下から持上げていないか' },
-    { no: 34, place: 'デポジッター', side: '', content: 'シャッター位置が正常か(押:0±0.5㎜ 引:9±0.5㎜)' },
-    { no: 35, place: 'デポジッター', side: '', content: '充填シャッターの油圧が基準値内で動作しているか(40~60bar)' },
-    { no: 36, place: 'デポジッター', side: '', content: '油圧シリンダー、油圧配管からオイル漏れがないか' },
-    { no: 37, place: 'デポジッター', side: '', content: '油圧シリンダーとシャッターの連結ピンが抜けていないか' },
-    { no: 38, place: 'デポジッター', side: '', content: 'トレー抑えシリンダーからエアー漏れがないか' },
-    { no: 39, place: '上掛け装置', side: '', content: '樹脂ローラーが回転しているか' },
-    { no: 40, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)' },
-    { no: 41, place: '上掛け装置', side: '', content: 'ウォーキングビーム爪がトレーを下から持上げていないか' },
-    { no: 42, place: '上掛け装置', side: '', content: '上掛け圧力が基準値であるか(0.3~0.4MPa)' },
-    { no: 43, place: 'スタッカー', side: '', content: 'クランプの開きがスムーズか' },
-    { no: 44, place: 'スタッカー', side: '', content: 'クランプ爪が変形していないか' },
-    { no: 45, place: 'スタッカー', side: '', content: 'クランプが閉じずにバウンドしていないか' },
-    { no: 46, place: 'スタッカー', side: '', content: 'クランプのトレー搬送状態が安定しているか' },
-    { no: 47, place: 'スタッカー', side: 'CFA側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
-    { no: 48, place: 'スタッカー', side: '乾燥室側', content: 'トレー55枚積み上げた時に近接センサーが反応しているか' },
-    { no: 49, place: 'スタッカー', side: '', content: 'トレー持上げの動作タイミングが正常か' },
-    { no: 50, place: 'スタッカー', side: 'CFA側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
-    { no: 51, place: 'スタッカー', side: '乾燥室側', content: '持上げで4点の爪より2㎜程度高く持上げているか' },
-    { no: 52, place: 'スタッカー', side: 'CFA側', content: '爪4点のスプリングがスムーズに動作しているか' },
-    { no: 53, place: 'スタッカー', side: '乾燥室側', content: '爪4点のスプリングがスムーズに動作しているか' },
-    { no: 54, place: 'スタッカー', side: 'CFA側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-    { no: 55, place: 'スタッカー', side: '乾燥室側', content: 'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)' },
-    { no: 56, place: 'スタッカー', side: '', content: 'トレー積み上げ時にズレがないか(2㎜以上のすきまがないか)' },
-    { no: 57, place: 'スタッカー', side: '', content: '持ち上げ部4爪4点の動きが硬くないか' },
-    { no: 58, place: 'RUN OUT', side: '', content: '油圧シリンダーからオイル漏れがないか' },
-  ].map(it => ({ ...it, id: 'item_' + it.no }));
-
-  const SHIKOMI_ITEMS = [
-    { no: 1, place: '新ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - ポンプ運転時に異音振動がないか、油・液漏れがないか、ギアオイル残量が確認できるか' },
-    { no: 2, place: '新ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 3, place: '新ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 4, place: '新ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
-    { no: 5, place: '新ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
-    { no: 6, place: '新ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、ギアオイル・グリセリン残量が確認できるか' },
-    { no: 7, place: '新ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 8, place: '新ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動がないか、油・液漏れがないか' },
-    { no: 9, place: '新ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
-    { no: 10, place: '新ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
-    { no: 11, place: '新ライン', side: '真空チャンバー', content: '冷却水ポンプ - 異音振動がないか、水漏れがないか' },
-    { no: 12, place: '新ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量が確認できるか' },
-    { no: 13, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-    { no: 14, place: '旧ライン', side: 'ゼラチン溶解', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-    { no: 15, place: '旧ライン', side: 'ゼラチン溶解', content: 'CIPポンプ - 異音振動がないか、水漏れがないか' },
-    { no: 16, place: '旧ライン', side: 'ゼラチン溶解 計量タンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 17, place: '旧ライン', side: 'ゼラチン溶解 ストックタンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 18, place: '旧ライン', side: '計量タンク', content: 'モーター - 異音振動がないか' },
-    { no: 19, place: '旧ライン', side: 'ウォームミックス', content: 'モーター - 異音振動がないか' },
-    { no: 20, place: '旧ライン', side: 'ウォームミックス後', content: 'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認' },
-    { no: 21, place: '旧ライン', side: 'バッファータンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 22, place: '旧ライン', side: 'バッファー後', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
-    { no: 23, place: '旧ライン', side: 'バッファー後', content: 'CIPポンプ - 異音振動・水漏れがないか' },
-    { no: 24, place: '旧ライン', side: '真空チャンバー', content: '真空ポンプ - 異音振動がないか' },
-    { no: 25, place: '旧ライン', side: '真空チャンバー', content: 'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認' },
-    { no: 26, place: '小ロット', side: '計量タンク', content: '撹拌機A - 異音振動がないか' },
-    { no: 27, place: '小ロット', side: '計量タンク', content: '撹拌機B - 異音振動がないか' },
-    { no: 28, place: '小ロット', side: '計量タンク', content: '撹拌機C - 異音振動がないか' },
-    { no: 29, place: '小ロット', side: 'バッファータンク', content: '撹拌機A - 異音振動がないか' },
-    { no: 30, place: '小ロット', side: 'バッファータンク', content: '撹拌機B - 異音振動がないか' },
-    { no: 31, place: '小ロット', side: 'バッファータンク', content: '撹拌機C - 異音振動がないか' },
-    { no: 32, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプA - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 33, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプB - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 34, place: '小ロット', side: '', content: 'ロータリーポンプ CIPポンプC - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 35, place: 'ミックスタンク', side: '新', content: '撹拌機 - 異音振動がないか' },
-    { no: 36, place: 'ミックスタンク', side: '旧', content: '撹拌機 - 異音振動がないか' },
-    { no: 37, place: 'ミックスタンク後', side: '1号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 38, place: 'ミックスタンク後', side: '2号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 39, place: 'ミックスタンク後', side: '3号', content: 'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 40, place: 'ミックスタンク後', side: '4号', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 41, place: 'レオニーダー', side: '', content: '真空ポンプ - 異音振動がないか' },
-    { no: 42, place: 'エアレーション', side: '', content: 'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認' },
-    { no: 43, place: 'エアレーション', side: '', content: 'CIPポンプ - 異音振動・水漏れがないか' },
-    { no: 44, place: 'エアレーション', side: 'ストックタンク', content: '撹拌機 - 異音振動がないか' },
-    { no: 45, place: '温水ポンプ', side: '11台', content: 'ポンプ運転時に異音振動・水漏れがないか' },
-    { no: 46, place: '温調弁', side: '9台', content: '水漏れがないか' },
-    { no: 47, place: '3方バルブ', side: '', content: '液漏れがないか' },
-    { no: 48, place: '配管', side: '', content: '蒸気、水漏れがないか' },
-  ].map(it => ({ ...it, id: 'item_' + it.no }));
-
-  const MACHINES = {
-    nid: { id: 'nid', name: 'NID日常点検', subtitle: 'チェックシート', paperSize: 'A3', defaultItems: NID_ITEMS },
-    shikomi: { id: 'shikomi', name: '仕込み日常点検', subtitle: 'チェックリスト', paperSize: 'A4', defaultItems: SHIKOMI_ITEMS },
-  };
-
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  };
-  const currentMonthStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  };
-  const timeStr = () => {
-    const d = new Date();
-    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  };
-  const daysInMonth = (yyyymm) => {
-    const [y, m] = yyyymm.split('-').map(Number);
-    return new Date(y, m, 0).getDate();
-  };
-
-  async function callGAS(action, body = {}) {
-    if (!isGasConfigured) throw new Error('GAS未設定');
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, ...body })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return data;
-  }
-
-  function App() {
-    const [machineId, setMachineId] = useState('nid');
-    const [tab, setTab] = useState('check');
-    const [allItems, setAllItems] = useState({ nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS });
-    const [allRecords, setAllRecords] = useState({ nid: {}, shikomi: {} });
-    const [loading, setLoading] = useState(true);
-    const [date, setDate] = useState(todayStr());
-    const [inspector, setInspector] = useState('');
-    const [checker, setChecker] = useState('');
-    const [editMode, setEditMode] = useState(false);
-    const [syncStatus, setSyncStatus] = useState({ state: 'idle', message: '', at: null });
-    const [editingItem, setEditingItem] = useState(null);
-    const [newItem, setNewItem] = useState({ place: '', side: '', content: '' });
-    const [printMonth, setPrintMonth] = useState(currentMonthStr());
-
-    const saveTimerRef = useRef(null);
-    const pendingDataRef = useRef(null);
-
-    const items = allItems[machineId] || [];
-    const records = allRecords[machineId] || {};
-    const machine = MACHINES[machineId];
-
-    useEffect(() => {
-      if (!isGasConfigured) { setLoading(false); return; }
-      refresh();
-    }, []);
-
-    const refresh = async () => {
-      if (!isGasConfigured) return;
-      setSyncStatus({ state: 'syncing', message: '同期中...', at: null });
-      try {
-        const data = await callGAS('loadAll');
-        const newItems = { ...allItems };
-        const newRecords = { ...allRecords };
-        for (const mid of ['nid', 'shikomi']) {
-          if (data.items && data.items[mid] && data.items[mid].length > 0) {
-            newItems[mid] = data.items[mid];
-          }
-          newRecords[mid] = (data.records && data.records[mid]) || {};
-        }
-        setAllItems(newItems);
-        setAllRecords(newRecords);
-        setSyncStatus({ state: 'online', message: '最新です', at: timeStr() });
-      } catch (e) {
-        setSyncStatus({ state: 'error', message: '同期エラー: ' + e.message, at: null });
-      }
-      setLoading(false);
-    };
-
-    const initializeSheet = async () => {
-      if (!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
-      setSyncStatus({ state: 'syncing', message: '初期化中...', at: null });
-      try {
-        await callGAS('init');
-        await callGAS('saveItems', { machineId: 'nid', items: NID_ITEMS });
-        await callGAS('saveItems', { machineId: 'shikomi', items: SHIKOMI_ITEMS });
-        await refresh();
-        alert('初期化完了しました');
-      } catch (e) {
-        setSyncStatus({ state: 'error', message: '初期化失敗: ' + e.message, at: null });
-      }
-    };
-
-    const current = records[date] || { results: {}, notes: {}, inspector: '', checker: '' };
-
-    useEffect(() => {
-      setInspector(current.inspector || '');
-      setChecker(current.checker || '');
-    }, [date, machineId, records]);
-
-    const saveRecord = (dateKey, data) => {
-      const newRecs = { ...records, [dateKey]: data };
-      setAllRecords(prev => ({ ...prev, [machineId]: newRecs }));
-      if (!isGasConfigured) return;
-      pendingDataRef.current = { machineId, date: dateKey, data };
-      setSyncStatus({ state: 'syncing', message: '保存待機中...', at: null });
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(async () => {
-        const pending = pendingDataRef.current;
-        if (!pending) return;
-        try {
-          setSyncStatus({ state: 'syncing', message: '保存中...', at: null });
-          await callGAS('saveRecord', pending);
-          setSyncStatus({ state: 'editing', message: '保存しました', at: timeStr() });
-        } catch (e) {
-          setSyncStatus({ state: 'error', message: '保存失敗: ' + e.message, at: null });
-        }
-      }, 800);
-    };
-
-    const saveItemsToGAS = async (next) => {
-      setAllItems(prev => ({ ...prev, [machineId]: next }));
-      if (!isGasConfigured) return;
-      try {
-        setSyncStatus({ state: 'syncing', message: '保存中...', at: null });
-        await callGAS('saveItems', { machineId, items: next });
-        setSyncStatus({ state: 'editing', message: '保存しました', at: timeStr() });
-      } catch (e) {
-        setSyncStatus({ state: 'error', message: '保存失敗: ' + e.message, at: null });
-      }
-    };
-
-    const setResult = (itemId, value) => {
-      if (!editMode) return;
-      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-      const newResults = { ...cur.results };
-      if (newResults[itemId] === value) delete newResults[itemId];
-      else newResults[itemId] = value;
-      saveRecord(date, { ...cur, results: newResults, inspector, checker });
-    };
-
-    const setNote = (itemId, text) => {
-      if (!editMode) return;
-      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-      saveRecord(date, { ...cur, notes: { ...cur.notes, [itemId]: text }, inspector, checker });
-    };
-
-    const updateMeta = (field, value) => {
-      if (!editMode) return;
-      if (field === 'inspector') setInspector(value);
-      if (field === 'checker') setChecker(value);
-      const cur = records[date] || { results: {}, notes: {}, inspector, checker };
-      saveRecord(date, { ...cur, [field]: value });
-    };
-
-    const clearDay = async () => {
-      if (!editMode) return;
-      if (!confirm(`${date}の点検記録を削除しますか?`)) return;
-      saveRecord(date, { results: {}, notes: {}, inspector: '', checker: '' });
-      setInspector(''); setChecker('');
-    };
-
-    const stats = useMemo(() => {
-      const r = current.results || {};
-      let ok = 0, ng = 0;
-      Object.values(r).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
-      return { ok, ng, done: ok + ng, total: items.length };
-    }, [current, items]);
-
-    const grouped = useMemo(() => {
-      const g = {};
-      items.forEach(it => {
-        if (!g[it.place]) g[it.place] = [];
-        g[it.place].push(it);
-      });
-      return g;
-    }, [items]);
-
-    const dateList = useMemo(() => 
-      Object.keys(records).filter(d => {
-        const r = records[d];
-        return r && r.results && Object.keys(r.results).length > 0;
-      }).sort((a,b) => b.localeCompare(a)), [records]);
-
-    const machineStats = useMemo(() => {
-      const stats = {};
-      for (const mid of ['nid', 'shikomi']) {
-        const recs = allRecords[mid] || {};
-        const count = Object.keys(recs).filter(d => {
-          const r = recs[d];
-          return r && r.results && Object.keys(r.results).length > 0;
-        }).length;
-        stats[mid] = count;
-      }
-      return stats;
-    }, [allRecords]);
-
-    const addItem = () => {
-      if (!newItem.content.trim()) { alert('内容を入力してください'); return; }
-      const maxNo = items.reduce((m, it) => Math.max(m, it.no), 0);
-      saveItemsToGAS([...items, { ...newItem, no: maxNo + 1, id: 'item_' + (maxNo + 1) }]);
-      setNewItem({ place: '', side: '', content: '' });
-    };
-    const deleteItem = (id) => {
-      if (!confirm('この点検項目を削除しますか?')) return;
-      saveItemsToGAS(items.filter(it => it.id !== id));
-    };
-    const saveEditItem = () => {
-      saveItemsToGAS(items.map(it => it.id === editingItem.id ? editingItem : it));
-      setEditingItem(null);
-    };
-
-    const doPrintMonth = () => {
-      const styleId = 'dynamic-print-style';
-      let styleEl = document.getElementById(styleId);
-      if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        document.head.appendChild(styleEl);
-      }
-      styleEl.textContent = `@media print { @page { size: ${machine.paperSize} landscape; margin: 6mm; } }`;
-      document.getElementById('print-area').classList.add('show');
-      setTimeout(() => {
-        window.print();
-        setTimeout(() => {
-          document.getElementById('print-area').classList.remove('show');
-        }, 500);
-      }, 100);
-    };
-
-    const exportExcel = () => {
-      if (typeof XLSX === 'undefined') { alert('Excelライブラリが読み込まれていません'); return; }
-      const days = daysInMonth(printMonth);
-      const [y, m] = printMonth.split('-');
-      const header = ['No.', '場所', '側', '点検内容'];
-      for (let d = 1; d <= days; d++) header.push(String(d));
-      header.push('備考');
-      const aoa = [[`${m}月度 ${machine.name}${machine.subtitle}`], [], header];
-      items.forEach(it => {
-        const row = [it.no, it.place, it.side, it.content];
-        const noteCollector = [];
-        for (let d = 1; d <= days; d++) {
-          const dateKey = `${printMonth}-${String(d).padStart(2,'0')}`;
-          const rec = records[dateKey];
-          const v = rec && rec.results ? rec.results[it.id] : null;
-          row.push(v === 'ok' ? '○' : v === 'ng' ? '×' : '');
-          const note = rec && rec.notes ? rec.notes[it.id] : null;
-          if (note && v === 'ng') noteCollector.push(`${d}日: ${note}`);
-        }
-        row.push(noteCollector.join(' / '));
-        aoa.push(row);
-      });
-      aoa.push([]);
-      const inspectorRow = ['点検者', '', '', ''];
-      const checkerRow = ['確認者', '', '', ''];
-      for (let d = 1; d <= days; d++) {
-        const dateKey = `${printMonth}-${String(d).padStart(2,'0')}`;
-        const rec = records[dateKey];
-        inspectorRow.push(rec?.inspector || '');
-        checkerRow.push(rec?.checker || '');
-      }
-      inspectorRow.push(''); checkerRow.push('');
-      aoa.push(inspectorRow);
-      aoa.push(checkerRow);
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40}, ...Array.from({length: days}, () => ({wch:4})), {wch:30}];
-      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 + days } }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, `${m}月`);
-      XLSX.writeFile(wb, `${machine.name}_${printMonth}.xlsx`);
-    };
-
-    const exportDailyExcel = () => {
-      if (typeof XLSX === 'undefined') { alert('Excelライブラリが読み込まれていません'); return; }
-      if (!current.results || Object.keys(current.results).length === 0) {
-        alert('この日の点検結果がありません'); return;
-      }
-      const aoa = [
-        [`${machine.name}${machine.subtitle}`],
-        ['日付', date, '', '点検者', inspector, '確認者', checker],
-        [],
-        ['No.', '場所', '側', '点検内容', '判定', '備考'],
-      ];
-      items.forEach(it => {
-        const v = current.results[it.id];
-        const note = (current.notes && current.notes[it.id]) || '';
-        aoa.push([it.no, it.place, it.side, it.content, v === 'ok' ? '○' : v === 'ng' ? '×' : '', note]);
-      });
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{wch:5},{wch:14},{wch:14},{wch:40},{wch:6},{wch:30}];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, date);
-      XLSX.writeFile(wb, `${machine.name}_${date}.xlsx`);
-    };
-
-    if (loading) return <div className="empty">読み込み中... (Apps Script と通信中)</div>;
-
-    if (!isGasConfigured) {
-      return (
-        <div className="app-root">
-          <div style={{padding:'20px', background:'#faeeda', border:'1px solid #FAC775', borderRadius:'12px', color:'#854f0b'}}>
-            <h3 style={{margin:'0 0 8px'}}>⚠ Google Apps Script の設定が必要です</h3>
-            <p>このHTMLファイルの <code style={{background:'rgba(0,0,0,0.05)',padding:'2px 6px',borderRadius:'4px'}}>GAS_URL</code> を、ご自身の Apps Script ウェブアプリURLに書き換えてください。</p>
-          </div>
-        </div>
-      );
-    }
-
-    const days = daysInMonth(printMonth);
-    const [py, pm] = printMonth.split('-');
-
-    return (
-      <div className="app-root">
-        <div className="machine-selector no-print">
-          {Object.values(MACHINES).map(m => (
-            <button key={m.id} className={`machine-tab ${machineId === m.id ? 'active' : ''}`} onClick={() => setMachineId(m.id)}>
-              {m.name}
-              <span className="badge">{machineStats[m.id]}日分</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="sync-bar no-print">
-          <span className="sync-status">
-            <span className={`sync-dot ${syncStatus.state === 'online' ? 'online' : syncStatus.state === 'editing' ? 'editing' : syncStatus.state === 'error' ? 'error' : ''}`}></span>
-            <span>{syncStatus.message || '待機中'}</span>
-            {syncStatus.at && <span style={{color:'#888780'}}>({syncStatus.at})</span>}
-          </span>
-          {SHEET_URL !== 'YOUR_SHEET_URL_HERE' && (
-            <a className="sheet-link" href={SHEET_URL} target="_blank" rel="noopener">📊 シートを開く</a>
-          )}
-          <button className="btn sm" onClick={refresh} style={{marginLeft:'auto'}}>🔄 最新を取得</button>
-          <button 
-            className={`btn sm ${editMode ? 'warning' : 'primary'}`}
-            onClick={() => {
-              if (editMode) setEditMode(false);
-              else if (confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')) setEditMode(true);
-            }}
-          >
-            {editMode ? '🔒 編集を終える' : '✏ 編集モード'}
-          </button>
-        </div>
-
-        <div className="tabs no-print">
-          <button className={`tab ${tab==='check'?'active':''}`} onClick={()=>setTab('check')}>点検実施</button>
-          <button className={`tab ${tab==='history'?'active':''}`} onClick={()=>setTab('history')}>履歴 ({dateList.length})</button>
-          <button className={`tab ${tab==='items'?'active':''}`} onClick={()=>setTab('items')}>項目管理</button>
-          <button className={`tab ${tab==='monthly'?'active':''}`} onClick={()=>setTab('monthly')}>月次出力</button>
-        </div>
-
-        {tab === 'check' && (
-          <>
-            <div className="top-bar no-print">
-              <div className="field"><label>日付</label>
-                <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:160}}/>
-              </div>
-              <div className="field"><label>点検者</label>
-                <input type="text" value={inspector} onChange={e=>updateMeta('inspector',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
-              </div>
-              <div className="field"><label>確認者</label>
-                <input type="text" value={checker} onChange={e=>updateMeta('checker',e.target.value)} placeholder="氏名" style={{width:160}} disabled={!editMode}/>
-              </div>
-              <div style={{marginLeft:'auto', display:'flex', gap:8}}>
-                <button className="btn" onClick={exportDailyExcel}>当日Excel</button>
-              </div>
-            </div>
-
-            <div className="summary no-print">
-              <div className="sc"><div className="sc-label">点検済み</div><div className="sc-value">{stats.done}<span style={{fontSize:14,color:'#5f5e5a'}}> / {stats.total}</span></div></div>
-              <div className="sc"><div className="sc-label">○ OK</div><div className="sc-value" style={{color:'#3b6d11'}}>{stats.ok}</div></div>
-              <div className="sc"><div className="sc-label">× NG</div><div className="sc-value" style={{color:'#a32d2d'}}>{stats.ng}</div></div>
-              <div className="sc"><div className="sc-label">未点検</div><div className="sc-value" style={{color:'#888780'}}>{stats.total - stats.done}</div></div>
-            </div>
-
-            <div className="progress-bar no-print">
-              <div className="progress-fill" style={{width: `${(stats.done/stats.total)*100}%`}}/>
-            </div>
-
-            <div className="no-print">
-              {Object.entries(grouped).map(([place, list]) => (
-                <div key={place}>
-                  <div className="group-header">📁 {place} <span style={{fontWeight:400, marginLeft:6}}>({list.length}項目)</span></div>
-                  {list.map(it => {
-                    const v = current.results && current.results[it.id];
-                    const note = (current.notes && current.notes[it.id]) || '';
-                    return (
-                      <div key={it.id} className={`check-row ${v==='ok'?'is-ok':v==='ng'?'is-ng':''} ${!editMode?'readonly':''}`}>
-                        <div className="row-no">{it.no}</div>
-                        <div className="row-body">
-                          <div>
-                            <span className="row-place">{it.place}</span>
-                            {it.side && <span className="row-side">{it.side}</span>}
-                          </div>
-                          <div className="row-content">{it.content}</div>
-                        </div>
-                        <div className="judge-group">
-                          <button className={`judge-btn ${v==='ok'?'ok-on':''}`} onClick={()=>setResult(it.id,'ok')} disabled={!editMode}>○</button>
-                          <button className={`judge-btn ${v==='ng'?'ng-on':''}`} onClick={()=>setResult(it.id,'ng')} disabled={!editMode}>×</button>
-                        </div>
-                        {v === 'ng' && (
-                          <div className="ng-note">
-                            <textarea value={note} onChange={e=>setNote(it.id, e.target.value)} placeholder="不具合内容を記入(任意)" disabled={!editMode}/>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-
-            <div className="no-print" style={{marginTop:20, display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8}}>
-              <button className="btn danger" onClick={clearDay} disabled={!editMode}>🗑 この日の記録を削除</button>
-            </div>
-          </>
-        )}
-
-        {tab === 'history' && (
-          <div>
-            <div style={{padding:14, background:'#f5f4ef', borderRadius:'12px', marginBottom:14, fontSize:14, color:'#5f5e5a'}}>
-              {machine.name}の履歴。「最新を取得」で他の人の入力を反映、「シートを開く」で生データを直接確認できます。
-            </div>
-            {dateList.length === 0 ? (
-              <div className="empty">まだ点検記録がありません</div>
-            ) : dateList.map(d => {
-              const r = records[d];
-              let ok = 0, ng = 0;
-              Object.values(r.results || {}).forEach(v => { if (v === 'ok') ok++; else if (v === 'ng') ng++; });
-              return (
-                <div key={d} className="hist-row">
-                  <div>
-                    <div style={{fontSize:15, fontWeight:500}}>{d}</div>
-                    <div style={{fontSize:13, color:'#5f5e5a', marginTop:2}}>点検者: {r.inspector || '—'} / 確認者: {r.checker || '—'}</div>
-                  </div>
-                  <div><span className="pill pill-ok">○ {ok}</span> &nbsp; <span className="pill pill-ng">× {ng}</span></div>
-                  <div style={{color:'#5f5e5a', fontSize:13}}>{ok+ng}/{items.length} 完了</div>
-                  <div><button className="btn sm" onClick={()=>{setDate(d); setTab('check');}}>👁 開く</button></div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {tab === 'items' && (
-          <div>
-            <div style={{padding:14, background:'#e6f1fb', borderRadius:'12px', marginBottom:14}}>
-              <div style={{fontSize:14, fontWeight:500, color:'#185fa5', marginBottom:10}}>
-                ➕ {machine.name}の項目を追加 {!editMode && <span style={{color:'#854f0b', fontWeight:400}}>(編集モードをONにしてください)</span>}
-              </div>
-              <div className="item-mgr" style={{background:'#fff', gridTemplateColumns:'50px 130px 90px 1fr 40px'}}>
-                <div style={{fontSize:13, color:'#5f5e5a'}}>No.自動</div>
-                <input value={newItem.place} onChange={e=>setNewItem({...newItem,place:e.target.value})} placeholder="場所" disabled={!editMode}/>
-                <input value={newItem.side} onChange={e=>setNewItem({...newItem,side:e.target.value})} placeholder="側(任意)" disabled={!editMode}/>
-                <input value={newItem.content} onChange={e=>setNewItem({...newItem,content:e.target.value})} placeholder="点検内容" onKeyDown={e=>e.key==='Enter'&&editMode&&addItem()} disabled={!editMode}/>
-                <button className="btn sm primary" onClick={addItem} disabled={!editMode} style={{width:40, padding:0}}>+</button>
-              </div>
-            </div>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
-              <div style={{fontSize:13, color:'#5f5e5a'}}>登録済み点検項目 ({items.length}件)</div>
-              <button className="btn sm" onClick={initializeSheet} disabled={!editMode}>📥 初期項目を投入</button>
-            </div>
-            {items.map(it => (
-              <div key={it.id} className="item-mgr">
-                <div style={{fontSize:14, fontWeight:500, textAlign:'center'}}>{it.no}</div>
-                <div style={{fontSize:13}}>{it.place}</div>
-                <div style={{fontSize:12, color:'#5f5e5a'}}>{it.side || '—'}</div>
-                <div style={{fontSize:14}}>{it.content}</div>
-                <div style={{display:'flex', gap:4}}>
-                  <button className="btn sm" onClick={()=>setEditingItem({...it})} disabled={!editMode} style={{width:36, padding:0}}>✏</button>
-                  <button className="btn sm danger" onClick={()=>deleteItem(it.id)} disabled={!editMode} style={{width:36, padding:0}}>🗑</button>
-                </div>
-              </div>
-            ))}
-
-            {editingItem && (
-              <div className="modal-bg" onClick={e=>e.target===e.currentTarget && setEditingItem(null)}>
-                <div className="modal">
-                  <h3 style={{margin:'0 0 16px', fontSize:18}}>点検項目を編集 (No.{editingItem.no})</h3>
-                  <div style={{marginBottom:12}}>
-                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>場所</label>
-                    <input value={editingItem.place} onChange={e=>setEditingItem({...editingItem, place:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14}}/>
-                  </div>
-                  <div style={{marginBottom:12}}>
-                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>側</label>
-                    <input value={editingItem.side} onChange={e=>setEditingItem({...editingItem, side:e.target.value})} style={{width:'100%', height:40, padding:'0 10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14}}/>
-                  </div>
-                  <div style={{marginBottom:16}}>
-                    <label style={{fontSize:13, color:'#5f5e5a', display:'block', marginBottom:4}}>内容</label>
-                    <textarea value={editingItem.content} onChange={e=>setEditingItem({...editingItem, content:e.target.value})} style={{width:'100%', minHeight:80, padding:'10px', border:'1px solid rgba(0,0,0,0.15)', borderRadius:'8px', boxSizing:'border-box', fontSize:14, resize:'vertical'}}/>
-                  </div>
-                  <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
-                    <button className="btn" onClick={()=>setEditingItem(null)}>キャンセル</button>
-                    <button className="btn primary" onClick={saveEditItem}>💾 保存</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'monthly' && (
-          <div>
-            <div className="print-config no-print">
-              <h3 style={{margin:'0 0 12px', color:'#185fa5'}}>📅 月次まとめ出力</h3>
-              <p style={{margin:'0 0 14px', fontSize:14, color:'#5f5e5a'}}>
-                印刷: <b>{machine.name} → {machine.paperSize}サイズ横向き</b>。
-              </p>
-              <div style={{display:'flex', gap:12, alignItems:'flex-end', flexWrap:'wrap'}}>
-                <div className="field">
-                  <label style={{fontSize:13, color:'#5f5e5a', marginBottom:4, display:'block'}}>対象月</label>
-                  <input type="month" value={printMonth} onChange={e=>setPrintMonth(e.target.value)} style={{height:44, padding:'0 12px', fontSize:15, border:'1px solid rgba(0,0,0,0.3)', borderRadius:'8px'}}/>
-                </div>
-                <button className="btn primary" onClick={doPrintMonth}>🖨 印刷 ({machine.paperSize}横)</button>
-                <button className="btn success" onClick={exportExcel}>📊 Excel(.xlsx)に変換</button>
-              </div>
-            </div>
-
-            <div style={{padding:14, background:'#f5f4ef', borderRadius:'12px'}}>
-              <h3 style={{margin:'0 0 12px', fontSize:15}}>{pm}月のプレビュー</h3>
-              <div style={{overflowX:'auto', background:'#fff', padding:10, borderRadius:'8px'}}>
-                <table style={{width:'100%', borderCollapse:'collapse', fontSize:9, color:'#000'}}>
-                  <thead>
-                    <tr style={{background:'#d0d0d0'}}>
-                      <th style={{border:'1px solid #333', padding:'2px', minWidth:24}}>No.</th>
-                      <th style={{border:'1px solid #333', padding:'2px', minWidth:80}}>場所</th>
-                      <th style={{border:'1px solid #333', padding:'2px', minWidth:60}}>側</th>
-                      <th style={{border:'1px solid #333', padding:'2px', minWidth:200}}>内容</th>
-                      {Array.from({length: days}, (_, i) => (
-                        <th key={i} style={{border:'1px solid #333', padding:'2px', width:20, textAlign:'center'}}>{i+1}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map(it => (
-                      <tr key={it.id}>
-                        <td style={{border:'1px solid #333', padding:'2px', textAlign:'center'}}>{it.no}</td>
-                        <td style={{border:'1px solid #333', padding:'2px'}}>{it.place}</td>
-                        <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.side}</td>
-                        <td style={{border:'1px solid #333', padding:'2px', fontSize:8}}>{it.content}</td>
-                        {Array.from({length: days}, (_, i) => {
-                          const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                          const rec = records[dk];
-                          const v = rec && rec.results ? rec.results[it.id] : null;
-                          return (
-                            <td key={i} style={{border:'1px solid #333', padding:'2px', textAlign:'center', fontWeight:'bold', fontSize:11,
-                              color: v==='ok' ? '#060' : v==='ng' ? '#c00' : '#000',
-                              background: v==='ng' ? '#ffe8e8' : '#fff'}}>
-                              {v==='ok'?'○':v==='ng'?'×':''}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div id="print-area">
-          <div style={{padding:'4mm', color:'#000', fontFamily:'sans-serif'}}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:4, borderBottom:'2px solid #000', paddingBottom:3}}>
-              <h1 style={{margin:0, fontSize:'14pt'}}>{pm}月度 {machine.name}{machine.subtitle}</h1>
-              <div style={{fontSize:'9pt'}}>対象: {printMonth}</div>
-            </div>
-            <div style={{fontSize:'8pt', marginBottom:4}}>※記入方法: 確認をし異常なければ○、異常があれば×に備考に詳細記入。</div>
-            <table className="month-table">
-              <thead>
-                <tr>
-                  <th style={{width:'18pt'}}>No.</th>
-                  <th style={{width:'48pt'}}>場所</th>
-                  <th style={{width:'42pt'}}>側</th>
-                  <th>点検内容</th>
-                  {Array.from({length: days}, (_, i) => <th key={i} style={{width:18, textAlign:'center'}}>{i+1}</th>)}
-                  <th style={{width:'90pt'}}>備考</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(it => {
-                  const noteList = [];
-                  const cells = [];
-                  for (let i = 0; i < days; i++) {
-                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                    const rec = records[dk];
-                    const v = rec && rec.results ? rec.results[it.id] : null;
-                    const note = rec && rec.notes ? rec.notes[it.id] : null;
-                    if (note && v === 'ng') noteList.push(`${i+1}日:${note}`);
-                    cells.push(<td key={i} className={v==='ok'?'ok-cell':v==='ng'?'ng-cell':''}>{v==='ok'?'○':v==='ng'?'×':''}</td>);
-                  }
-                  return (
-                    <tr key={it.id}>
-                      <td style={{textAlign:'center'}}>{it.no}</td>
-                      <td>{it.place}</td>
-                      <td style={{fontSize:'6pt'}}>{it.side}</td>
-                      <td style={{fontSize:'7pt'}}>{it.content}</td>
-                      {cells}
-                      <td style={{fontSize:'6pt'}}>{noteList.join(' / ')}</td>
-                    </tr>
-                  );
-                })}
-                <tr>
-                  <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>点検者</td>
-                  {Array.from({length: days}, (_, i) => {
-                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                    const rec = records[dk];
-                    return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.inspector ? rec.inspector.slice(0,3) : ''}</td>;
-                  })}
-                  <td></td>
-                </tr>
-                <tr>
-                  <td colSpan={4} style={{fontWeight:'bold', textAlign:'right', paddingRight:6}}>確認者</td>
-                  {Array.from({length: days}, (_, i) => {
-                    const dk = `${printMonth}-${String(i+1).padStart(2,'0')}`;
-                    const rec = records[dk];
-                    return <td key={i} style={{fontSize:'6pt', textAlign:'center'}}>{rec?.checker ? rec.checker.slice(0,3) : ''}</td>;
-                  })}
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // アプリ起動
-  try {
-    updateStatus('status-app', 'アプリ起動中...', true);
-    const root = ReactDOM.createRoot(document.getElementById('app'));
-    root.render(<App />);
-  } catch (e) {
-    window.showError('アプリ起動失敗', e.message + '\n\n' + (e.stack || ''));
+<script>
+// ============================================================
+// エラーハンドリング
+// ============================================================
+window.addEventListener('error', function(e) {
+  showFatalError('エラーが発生しました', (e.message||'unknown') + '\n行: ' + (e.lineno||'?'));
+});
+function showFatalError(title, detail) {
+  var root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = '<div class="err-box"><h3>⚠ ' + title + '</h3><pre>' + 
+      String(detail).replace(/</g,'&lt;') + '</pre><p style="font-size:13px;">この内容をスクリーンショットで撮って共有してください。</p></div>';
   }
 }
-</script>
 
+// ============================================================
+// 設定 - ここを書き換えてください
+// ============================================================
+// ★★★ Apps Script ウェブアプリ URL ★★★
+var GAS_URL = 'YOUR_GAS_URL_HERE';
+// ★★★ スプレッドシートURL(任意) ★★★
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
+
+var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
+
+// ============================================================
+// 点検項目データ
+// ============================================================
+var NID_ITEMS = [
+  {no:1,place:'RUN IN',side:'',content:'油圧シリンダからオイル漏れがないか'},
+  {no:2,place:'1次エージング',side:'',content:'オイルタンク油面計のフロートがゲージ内にあり、オイルが減っていないか'},
+  {no:3,place:'フィーダー',side:'リモル側',content:'羽根出入位置が正常か(停止線±5㎜以内)'},
+  {no:4,place:'フィーダー',side:'乾燥室側',content:'羽根出入位置が正常か(停止線±5㎜以内)'},
+  {no:5,place:'フィーダー',side:'リモル側',content:'羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか'},
+  {no:6,place:'フィーダー',side:'乾燥室側',content:'羽根出入時、クランプ押えガイド(緑色樹脂)で5㎜以上押えられているか'},
+  {no:7,place:'フィーダー',side:'リモル側',content:'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)'},
+  {no:8,place:'フィーダー',side:'乾燥室側',content:'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)'},
+  {no:9,place:'フィーダー',side:'リモル側',content:'クランプ爪が変形していないか'},
+  {no:10,place:'フィーダー',side:'乾燥室側',content:'クランプ爪が変形していないか'},
+  {no:11,place:'フィーダー',side:'リモル側',content:'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか'},
+  {no:12,place:'フィーダー',side:'乾燥室側',content:'クランプが閉じる際にベアリング、緑樹脂に5㎜以上乗っているか'},
+  {no:13,place:'フィーダー',side:'',content:'クランプのトレー搬送状態が安定しているか'},
+  {no:14,place:'フィーダー',side:'',content:'クランプ通過センサーが反応しているか(4か所)'},
+  {no:15,place:'フィーダー',side:'',content:'トレー1枚ずつの切離しタイミングとウォーキングビームの搬送タイミングが適正か'},
+  {no:16,place:'フィーダー',side:'',content:'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)'},
+  {no:17,place:'フィーダー',side:'',content:'ウォーキングビーム爪がトレーを下から持上げていないか'},
+  {no:18,place:'フィーダー',side:'',content:'樹脂ローラー、鉄ローラーが回転しているか(4か所)'},
+  {no:19,place:'デモルダー',side:'',content:'反転部アームの角度がトレーに対して平行か'},
+  {no:20,place:'デモルダー',side:'',content:'反転部でのトレーのばたつきがないか'},
+  {no:21,place:'デモルダー',side:'',content:'トレーが持ち上がる前に次のトレーが動いてないか'},
+  {no:22,place:'デモルダー',side:'',content:'デモルダーの異音、振動がないか'},
+  {no:23,place:'デモルダー',side:'',content:'反転部からエアー漏れの音がしていないか'},
+  {no:24,place:'デモルダー',side:'',content:'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)'},
+  {no:25,place:'デモルダー',side:'',content:'ウォーキングビーム爪がトレーを下から持上げていないか'},
+  {no:26,place:'デモルダー',side:'',content:'反転部のエアー圧が0.5±0.05MPaか'},
+  {no:27,place:'センターチェーン',side:'',content:'デモルダー、センターチェーンの乗継がスムーズか'},
+  {no:28,place:'センターチェーン',side:'',content:'センターチェーン、スターチバックの乗継がスムーズか'},
+  {no:29,place:'スターチバック',side:'',content:'入口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)'},
+  {no:30,place:'スターチバック',side:'',content:'入口のウォーキングビーム爪がトレーを下から持上げていないか'},
+  {no:31,place:'スターチバック',side:'',content:'樹脂ローラーが回転しているか(4か所)'},
+  {no:32,place:'スターチバック',side:'',content:'出口のウォーキングビーム爪がトレーにかかっているか(5㎜以上)'},
+  {no:33,place:'スターチバック',side:'',content:'出口のウォーキングビーム爪がトレーを下から持上げていないか'},
+  {no:34,place:'デポジッター',side:'',content:'シャッター位置が正常か(押:0±0.5㎜ 引:9±0.5㎜)'},
+  {no:35,place:'デポジッター',side:'',content:'充填シャッターの油圧が基準値内で動作しているか(40~60bar)'},
+  {no:36,place:'デポジッター',side:'',content:'油圧シリンダー、油圧配管からオイル漏れがないか'},
+  {no:37,place:'デポジッター',side:'',content:'油圧シリンダーとシャッターの連結ピンが抜けていないか'},
+  {no:38,place:'デポジッター',side:'',content:'トレー抑えシリンダーからエアー漏れがないか'},
+  {no:39,place:'上掛け装置',side:'',content:'樹脂ローラーが回転しているか'},
+  {no:40,place:'上掛け装置',side:'',content:'ウォーキングビーム爪がトレーにかかっているか(5㎜以上)'},
+  {no:41,place:'上掛け装置',side:'',content:'ウォーキングビーム爪がトレーを下から持上げていないか'},
+  {no:42,place:'上掛け装置',side:'',content:'上掛け圧力が基準値であるか(0.3~0.4MPa)'},
+  {no:43,place:'スタッカー',side:'',content:'クランプの開きがスムーズか'},
+  {no:44,place:'スタッカー',side:'',content:'クランプ爪が変形していないか'},
+  {no:45,place:'スタッカー',side:'',content:'クランプが閉じずにバウンドしていないか'},
+  {no:46,place:'スタッカー',side:'',content:'クランプのトレー搬送状態が安定しているか'},
+  {no:47,place:'スタッカー',side:'CFA側',content:'トレー55枚積み上げた時に近接センサーが反応しているか'},
+  {no:48,place:'スタッカー',side:'乾燥室側',content:'トレー55枚積み上げた時に近接センサーが反応しているか'},
+  {no:49,place:'スタッカー',side:'',content:'トレー持上げの動作タイミングが正常か'},
+  {no:50,place:'スタッカー',side:'CFA側',content:'持上げで4点の爪より2㎜程度高く持上げているか'},
+  {no:51,place:'スタッカー',side:'乾燥室側',content:'持上げで4点の爪より2㎜程度高く持上げているか'},
+  {no:52,place:'スタッカー',side:'CFA側',content:'爪4点のスプリングがスムーズに動作しているか'},
+  {no:53,place:'スタッカー',side:'乾燥室側',content:'爪4点のスプリングがスムーズに動作しているか'},
+  {no:54,place:'スタッカー',side:'CFA側',content:'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)'},
+  {no:55,place:'スタッカー',side:'乾燥室側',content:'チェーンのたるみがないか(赤樹脂とチェーンの隙間4~10㎜)'},
+  {no:56,place:'スタッカー',side:'',content:'トレー積み上げ時にズレがないか(2㎜以上のすきまがないか)'},
+  {no:57,place:'スタッカー',side:'',content:'持ち上げ部4爪4点の動きが硬くないか'},
+  {no:58,place:'RUN OUT',side:'',content:'油圧シリンダーからオイル漏れがないか'}
+];
+for (var i=0;i<NID_ITEMS.length;i++){ NID_ITEMS[i].id='item_'+NID_ITEMS[i].no; }
+
+var SHIKOMI_ITEMS = [
+  {no:1,place:'新ライン',side:'ゼラチン溶解',content:'ロータリーポンプ - ポンプ運転時に異音振動がないか、油・液漏れがないか、ギアオイル残量が確認できるか'},
+  {no:2,place:'新ライン',side:'ゼラチン溶解 計量タンク',content:'撹拌機 - 異音振動がないか'},
+  {no:3,place:'新ライン',side:'ゼラチン溶解 ストックタンク',content:'撹拌機 - 異音振動がないか'},
+  {no:4,place:'新ライン',side:'計量タンク',content:'モーター - 異音振動がないか'},
+  {no:5,place:'新ライン',side:'ウォームミックス',content:'モーター - 異音振動がないか'},
+  {no:6,place:'新ライン',side:'ウォームミックス後',content:'ロータリーポンプ - 異音振動・油液漏れがないか、ギアオイル・グリセリン残量が確認できるか'},
+  {no:7,place:'新ライン',side:'バッファータンク',content:'撹拌機 - 異音振動がないか'},
+  {no:8,place:'新ライン',side:'バッファー後',content:'ロータリーポンプ - 異音振動がないか、油・液漏れがないか'},
+  {no:9,place:'新ライン',side:'バッファー後',content:'CIPポンプ - 異音振動がないか、水漏れがないか'},
+  {no:10,place:'新ライン',side:'真空チャンバー',content:'真空ポンプ - 異音振動がないか'},
+  {no:11,place:'新ライン',side:'真空チャンバー',content:'冷却水ポンプ - 異音振動がないか、水漏れがないか'},
+  {no:12,place:'新ライン',side:'真空チャンバー',content:'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量が確認できるか'},
+  {no:13,place:'旧ライン',side:'ゼラチン溶解',content:'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認'},
+  {no:14,place:'旧ライン',side:'ゼラチン溶解',content:'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認'},
+  {no:15,place:'旧ライン',side:'ゼラチン溶解',content:'CIPポンプ - 異音振動がないか、水漏れがないか'},
+  {no:16,place:'旧ライン',side:'ゼラチン溶解 計量タンク',content:'撹拌機 - 異音振動がないか'},
+  {no:17,place:'旧ライン',side:'ゼラチン溶解 ストックタンク',content:'撹拌機 - 異音振動がないか'},
+  {no:18,place:'旧ライン',side:'計量タンク',content:'モーター - 異音振動がないか'},
+  {no:19,place:'旧ライン',side:'ウォームミックス',content:'モーター - 異音振動がないか'},
+  {no:20,place:'旧ライン',side:'ウォームミックス後',content:'ロータリーポンプ - 異音振動・油液漏れがないか、グリセリン残量確認'},
+  {no:21,place:'旧ライン',side:'バッファータンク',content:'撹拌機 - 異音振動がないか'},
+  {no:22,place:'旧ライン',side:'バッファー後',content:'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認'},
+  {no:23,place:'旧ライン',side:'バッファー後',content:'CIPポンプ - 異音振動・水漏れがないか'},
+  {no:24,place:'旧ライン',side:'真空チャンバー',content:'真空ポンプ - 異音振動がないか'},
+  {no:25,place:'旧ライン',side:'真空チャンバー',content:'ロータリーポンプ - 異音振動・油液漏れ、ギアオイル・グリセリン残量確認'},
+  {no:26,place:'小ロット',side:'計量タンク',content:'撹拌機A - 異音振動がないか'},
+  {no:27,place:'小ロット',side:'計量タンク',content:'撹拌機B - 異音振動がないか'},
+  {no:28,place:'小ロット',side:'計量タンク',content:'撹拌機C - 異音振動がないか'},
+  {no:29,place:'小ロット',side:'バッファータンク',content:'撹拌機A - 異音振動がないか'},
+  {no:30,place:'小ロット',side:'バッファータンク',content:'撹拌機B - 異音振動がないか'},
+  {no:31,place:'小ロット',side:'バッファータンク',content:'撹拌機C - 異音振動がないか'},
+  {no:32,place:'小ロット',side:'',content:'ロータリーポンプ CIPポンプA - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:33,place:'小ロット',side:'',content:'ロータリーポンプ CIPポンプB - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:34,place:'小ロット',side:'',content:'ロータリーポンプ CIPポンプC - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:35,place:'ミックスタンク',side:'新',content:'撹拌機 - 異音振動がないか'},
+  {no:36,place:'ミックスタンク',side:'旧',content:'撹拌機 - 異音振動がないか'},
+  {no:37,place:'ミックスタンク後',side:'1号',content:'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:38,place:'ミックスタンク後',side:'2号',content:'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:39,place:'ミックスタンク後',side:'3号',content:'ロータリーポンプ CIPポンプ - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:40,place:'ミックスタンク後',side:'4号',content:'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:41,place:'レオニーダー',side:'',content:'真空ポンプ - 異音振動がないか'},
+  {no:42,place:'エアレーション',side:'',content:'ロータリーポンプ - 異音振動・油液漏れ・ギアオイル残量確認'},
+  {no:43,place:'エアレーション',side:'',content:'CIPポンプ - 異音振動・水漏れがないか'},
+  {no:44,place:'エアレーション',side:'ストックタンク',content:'撹拌機 - 異音振動がないか'},
+  {no:45,place:'温水ポンプ',side:'11台',content:'ポンプ運転時に異音振動・水漏れがないか'},
+  {no:46,place:'温調弁',side:'9台',content:'水漏れがないか'},
+  {no:47,place:'3方バルブ',side:'',content:'液漏れがないか'},
+  {no:48,place:'配管',side:'',content:'蒸気、水漏れがないか'}
+];
+for (var j=0;j<SHIKOMI_ITEMS.length;j++){ SHIKOMI_ITEMS[j].id='item_'+SHIKOMI_ITEMS[j].no; }
+
+var MACHINES = {
+  nid: { id:'nid', name:'NID日常点検', subtitle:'チェックシート', paperSize:'A3', defaultItems: NID_ITEMS },
+  shikomi: { id:'shikomi', name:'仕込み日常点検', subtitle:'チェックリスト', paperSize:'A4', defaultItems: SHIKOMI_ITEMS }
+};
+// ============================================================
+// ユーティリティ
+// ============================================================
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function currentMonthStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+function timeStr(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function daysInMonth(ym){ var p=ym.split('-'); return new Date(Number(p[0]),Number(p[1]),0).getDate(); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function el(id){ return document.getElementById(id); }
+
+// ============================================================
+// Apps Script 通信
+// ============================================================
+function callGAS(action, body, cb, errcb){
+  if(!isGasConfigured){ errcb&&errcb(new Error('GAS未設定')); return; }
+  body = body || {};
+  body.action = action;
+  fetch(GAS_URL, {
+    method:'POST', mode:'cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body)
+  }).then(function(res){
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.json();
+  }).then(function(data){
+    if(data.error) throw new Error(data.error);
+    cb && cb(data);
+  }).catch(function(e){ errcb && errcb(e); });
+}
+
+// ============================================================
+// アプリ状態
+// ============================================================
+var STATE = {
+  machineId: 'nid',
+  tab: 'check',
+  allItems: { nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS },
+  allRecords: { nid: {}, shikomi: {} },
+  date: todayStr(),
+  editMode: false,
+  sync: { state:'idle', message:'', at:null },
+  printMonth: currentMonthStr(),
+  editingItem: null,
+  loading: true
+};
+var saveTimer = null;
+var pendingData = null;
+
+function getItems(){ return STATE.allItems[STATE.machineId] || []; }
+function getRecords(){ return STATE.allRecords[STATE.machineId] || {}; }
+function getCurrent(){ 
+  var r = getRecords()[STATE.date];
+  return r || { results:{}, notes:{}, inspector:'', checker:'' };
+}
+function getMachine(){ return MACHINES[STATE.machineId]; }
+
+// ============================================================
+// データ取得・保存
+// ============================================================
+function refresh(){
+  if(!isGasConfigured){ STATE.loading=false; render(); return; }
+  STATE.sync = { state:'syncing', message:'同期中...', at:null };
+  render();
+  callGAS('loadAll', {}, function(data){
+    var mids = ['nid','shikomi'];
+    for(var i=0;i<mids.length;i++){
+      var mid = mids[i];
+      if(data.items && data.items[mid] && data.items[mid].length>0){
+        STATE.allItems[mid] = data.items[mid];
+      }
+      STATE.allRecords[mid] = (data.records && data.records[mid]) || {};
+    }
+    STATE.sync = { state:'online', message:'最新です', at:timeStr() };
+    STATE.loading = false;
+    render();
+  }, function(e){
+    STATE.sync = { state:'error', message:'同期エラー: '+e.message, at:null };
+    STATE.loading = false;
+    render();
+  });
+}
+
+function saveRecordNow(dateKey, data){
+  var recs = {};
+  var cur = getRecords();
+  for(var k in cur) recs[k] = cur[k];
+  recs[dateKey] = data;
+  STATE.allRecords[STATE.machineId] = recs;
+  if(!isGasConfigured){ render(); return; }
+  pendingData = { machineId: STATE.machineId, date: dateKey, data: data };
+  STATE.sync = { state:'syncing', message:'保存待機中...', at:null };
+  render();
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    if(!pendingData) return;
+    STATE.sync = { state:'syncing', message:'保存中...', at:null }; renderSyncBar();
+    callGAS('saveRecord', pendingData, function(){
+      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; renderSyncBar();
+    }, function(e){
+      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; renderSyncBar();
+    });
+  }, 800);
+}
+
+function saveItems(next){
+  STATE.allItems[STATE.machineId] = next;
+  if(!isGasConfigured){ render(); return; }
+  STATE.sync = { state:'syncing', message:'保存中...', at:null };
+  render();
+  callGAS('saveItems', { machineId: STATE.machineId, items: next }, function(){
+    STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; renderSyncBar();
+  }, function(e){
+    STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; renderSyncBar();
+  });
+}
+
+function initializeSheet(){
+  if(!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
+  STATE.sync = { state:'syncing', message:'初期化中...', at:null }; renderSyncBar();
+  callGAS('init', {}, function(){
+    callGAS('saveItems', { machineId:'nid', items: NID_ITEMS }, function(){
+      callGAS('saveItems', { machineId:'shikomi', items: SHIKOMI_ITEMS }, function(){
+        refresh();
+        alert('初期化完了しました');
+      }, syncErr);
+    }, syncErr);
+  }, syncErr);
+  function syncErr(e){ STATE.sync={state:'error',message:'初期化失敗: '+e.message,at:null}; renderSyncBar(); }
+}
+
+// ============================================================
+// 操作ハンドラ
+// ============================================================
+function setResult(itemId, value){
+  if(!STATE.editMode) return;
+  var cur = clone(getCurrent());
+  if(cur.results[itemId] === value) delete cur.results[itemId];
+  else cur.results[itemId] = value;
+  cur.inspector = el('inp-inspector') ? el('inp-inspector').value : cur.inspector;
+  cur.checker = el('inp-checker') ? el('inp-checker').value : cur.checker;
+  saveRecordNow(STATE.date, cur);
+}
+function setNote(itemId, text){
+  if(!STATE.editMode) return;
+  var cur = clone(getCurrent());
+  cur.notes[itemId] = text;
+  saveRecordNow(STATE.date, cur);
+}
+function updateMeta(field, value){
+  if(!STATE.editMode) return;
+  var cur = clone(getCurrent());
+  cur[field] = value;
+  saveRecordNow(STATE.date, cur);
+}
+function clearDay(){
+  if(!STATE.editMode) return;
+  if(!confirm(STATE.date+'の点検記録を削除しますか?')) return;
+  saveRecordNow(STATE.date, { results:{}, notes:{}, inspector:'', checker:'' });
+}
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+function addItem(){
+  var place = el('new-place').value;
+  var side = el('new-side').value;
+  var content = el('new-content').value;
+  if(!content.trim()){ alert('内容を入力してください'); return; }
+  var items = getItems();
+  var maxNo = 0;
+  for(var i=0;i<items.length;i++) if(items[i].no>maxNo) maxNo=items[i].no;
+  var next = items.slice();
+  next.push({ no:maxNo+1, id:'item_'+(maxNo+1), place:place, side:side, content:content });
+  saveItems(next);
+}
+function deleteItem(id){
+  if(!confirm('この点検項目を削除しますか?')) return;
+  var next = getItems().filter(function(it){ return it.id!==id; });
+  saveItems(next);
+}
+function openEditItem(id){
+  var it = getItems().filter(function(x){ return x.id===id; })[0];
+  if(it){ STATE.editingItem = clone(it); render(); }
+}
+function saveEditItem(){
+  var e = STATE.editingItem;
+  e.place = el('edit-place').value;
+  e.side = el('edit-side').value;
+  e.content = el('edit-content').value;
+  var next = getItems().map(function(it){ return it.id===e.id ? e : it; });
+  STATE.editingItem = null;
+  saveItems(next);
+}
+
+function toggleEditMode(){
+  if(STATE.editMode){ STATE.editMode=false; render(); }
+  else if(confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')){
+    STATE.editMode=true; render();
+  }
+}
+
+function switchMachine(mid){ STATE.machineId=mid; STATE.editingItem=null; render(); }
+function switchTab(t){ STATE.tab=t; render(); }
+function openDate(d){ STATE.date=d; STATE.tab='check'; render(); }
+
+// ============================================================
+// 印刷
+// ============================================================
+function doPrintMonth(){
+  var m = getMachine();
+  var styleEl = el('dynamic-print-style');
+  if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='dynamic-print-style'; document.head.appendChild(styleEl); }
+  styleEl.textContent = '@media print { @page { size: '+m.paperSize+' landscape; margin: 6mm; } }';
+  buildPrintArea();
+  el('print-area').classList.add('show');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ el('print-area').classList.remove('show'); }, 500);
+  }, 100);
+}
+
+// ============================================================
+// Excel出力(XLSX があれば)
+// ============================================================
+function exportExcel(){
+  if(typeof XLSX==='undefined'){ alert('Excel機能は現在利用できません(ライブラリ読込不可)。印刷機能をご利用ください。'); return; }
+  var m = getMachine(); var items = getItems(); var records = getRecords();
+  var days = daysInMonth(STATE.printMonth);
+  var mm = STATE.printMonth.split('-')[1];
+  var header = ['No.','場所','側','点検内容'];
+  for(var d=1;d<=days;d++) header.push(String(d));
+  header.push('備考');
+  var aoa = [[mm+'月度 '+m.name+m.subtitle], [], header];
+  items.forEach(function(it){
+    var row = [it.no, it.place, it.side, it.content];
+    var notes = [];
+    for(var d=1;d<=days;d++){
+      var dk = STATE.printMonth+'-'+pad(d);
+      var rec = records[dk];
+      var v = rec&&rec.results ? rec.results[it.id] : null;
+      row.push(v==='ok'?'○':v==='ng'?'×':'');
+      var note = rec&&rec.notes ? rec.notes[it.id] : null;
+      if(note&&v==='ng') notes.push(d+'日: '+note);
+    }
+    row.push(notes.join(' / '));
+    aoa.push(row);
+  });
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, mm+'月');
+  XLSX.writeFile(wb, m.name+'_'+STATE.printMonth+'.xlsx');
+}
+
+// ============================================================
+// 集計
+// ============================================================
+function getStats(){
+  var cur = getCurrent(); var ok=0,ng=0;
+  for(var k in cur.results){ if(cur.results[k]==='ok')ok++; else if(cur.results[k]==='ng')ng++; }
+  return { ok:ok, ng:ng, done:ok+ng, total:getItems().length };
+}
+function getGrouped(){
+  var g={}, order=[];
+  getItems().forEach(function(it){
+    if(!g[it.place]){ g[it.place]=[]; order.push(it.place); }
+    g[it.place].push(it);
+  });
+  return { groups:g, order:order };
+}
+function getDateList(){
+  var recs = getRecords(); var list=[];
+  for(var d in recs){
+    var r = recs[d];
+    if(r && r.results && Object.keys(r.results).length>0) list.push(d);
+  }
+  list.sort(function(a,b){ return b.localeCompare(a); });
+  return list;
+}
+function getMachineStat(mid){
+  var recs = STATE.allRecords[mid]||{}; var c=0;
+  for(var d in recs){ var r=recs[d]; if(r&&r.results&&Object.keys(r.results).length>0)c++; }
+  return c;
+}
+
+// ============================================================
+// レンダリング(後半のapp_render.jsで定義)
+// ============================================================
+</script>
+<script>
+// ============================================================
+// レンダリング
+// ============================================================
+function render(){
+  var root = el('root');
+  if(STATE.loading){
+    root.innerHTML = '<div class="empty"><div class="spinner"></div><div style="margin-top:12px;">読み込み中... (Apps Scriptと通信中)</div></div>';
+    return;
+  }
+  if(!isGasConfigured){
+    root.innerHTML = '<div class="err-box" style="background:var(--c-warn-bg);border-color:#FAC775;color:var(--c-warn);">'+
+      '<h3>⚠ Google Apps Script の設定が必要です</h3>'+
+      '<p>このHTMLファイルの GAS_URL を、ご自身の Apps Script ウェブアプリURLに書き換えてください。</p></div>';
+    return;
+  }
+
+  var html = '';
+  html += renderMachineSelector();
+  html += renderSyncBar();
+  html += renderTabs();
+  if(STATE.tab==='check') html += renderCheck();
+  else if(STATE.tab==='history') html += renderHistory();
+  else if(STATE.tab==='items') html += renderItems();
+  else if(STATE.tab==='monthly') html += renderMonthly();
+  root.innerHTML = html;
+
+  if(STATE.editingItem) renderEditModal();
+  attachHandlers();
+}
+
+function renderMachineSelector(){
+  var h = '<div class="machine-selector no-print">';
+  ['nid','shikomi'].forEach(function(mid){
+    var m = MACHINES[mid];
+    h += '<button class="machine-tab '+(STATE.machineId===mid?'active':'')+'" data-machine="'+mid+'">'+
+      esc(m.name)+'<span class="badge">'+getMachineStat(mid)+'日分</span></button>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function syncDotClass(){
+  var s = STATE.sync.state;
+  return s==='online'?'online':s==='editing'?'editing':s==='syncing'?'syncing':s==='error'?'error':'';
+}
+
+function renderTabs(){
+  var dl = getDateList().length;
+  var tabs = [['check','点検実施'],['history','履歴 ('+dl+')'],['items','項目管理'],['monthly','月次出力']];
+  var h = '<div class="tabs no-print">';
+  tabs.forEach(function(t){
+    h += '<button class="tab '+(STATE.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function renderCheck(){
+  var cur = getCurrent();
+  var stats = getStats();
+  var ed = STATE.editMode;
+  var dis = ed ? '' : 'disabled';
+  var h = '';
+  h += '<div class="top-bar no-print">';
+  h += '<div class="field"><label>日付</label><input type="date" id="inp-date" value="'+STATE.date+'"></div>';
+  h += '<div class="field"><label>点検者</label><input type="text" id="inp-inspector" value="'+esc(cur.inspector)+'" placeholder="氏名" '+dis+'></div>';
+  h += '<div class="field"><label>確認者</label><input type="text" id="inp-checker" value="'+esc(cur.checker)+'" placeholder="氏名" '+dis+'></div>';
+  h += '</div>';
+
+  h += '<div class="summary no-print">';
+  h += sc('点検済み', stats.done+' / '+stats.total, '');
+  h += sc('○ OK', stats.ok, 'var(--c-success)');
+  h += sc('× NG', stats.ng, 'var(--c-danger)');
+  h += sc('未点検', stats.total-stats.done, 'var(--c-text3)');
+  h += '</div>';
+
+  h += '<div class="progress-bar no-print"><div class="progress-fill" style="width:'+(stats.total?(stats.done/stats.total*100):0)+'%"></div></div>';
+
+  h += '<div class="no-print">';
+  var gr = getGrouped();
+  gr.order.forEach(function(place){
+    var list = gr.groups[place];
+    h += '<div class="group-header">📁 '+esc(place)+' <span style="font-weight:400;margin-left:6px">('+list.length+'項目)</span></div>';
+    list.forEach(function(it){
+      var v = cur.results[it.id];
+      var note = cur.notes[it.id]||'';
+      var cls = v==='ok'?'is-ok':v==='ng'?'is-ng':'';
+      h += '<div class="check-row '+cls+' '+(ed?'':'readonly')+'">';
+      h += '<div class="row-no">'+it.no+'</div>';
+      h += '<div class="row-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
+      h += '<div class="row-content">'+esc(it.content)+'</div></div>';
+      h += '<div class="judge-group">';
+      h += '<button class="judge-btn '+(v==='ok'?'ok-on':'')+'" data-result="ok" data-id="'+it.id+'" '+dis+'>○</button>';
+      h += '<button class="judge-btn '+(v==='ng'?'ng-on':'')+'" data-result="ng" data-id="'+it.id+'" '+dis+'>×</button>';
+      h += '</div>';
+      if(v==='ng'){
+        h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
+      }
+      h += '</div>';
+    });
+  });
+  h += '</div>';
+
+  h += '<div class="no-print" style="margin-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+  h += '<button class="btn danger" id="btn-clearday" '+dis+'>🗑 この日の記録を削除</button>';
+  h += '</div>';
+  return h;
+}
+function sc(label, value, color){
+  return '<div class="sc"><div class="sc-label">'+label+'</div><div class="sc-value" style="color:'+(color||'inherit')+'">'+value+'</div></div>';
+}
+
+function renderHistory(){
+  var m = getMachine();
+  var records = getRecords();
+  var dl = getDateList();
+  var h = '<div style="padding:14px;background:var(--c-bg2);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">'+
+    esc(m.name)+'の履歴。「最新を取得」で他の人の入力を反映、「シートを開く」で生データを直接確認できます。</div>';
+  if(dl.length===0){ h += '<div class="empty">まだ点検記録がありません</div>'; return h; }
+  dl.forEach(function(d){
+    var r = records[d]; var ok=0,ng=0;
+    for(var k in r.results){ if(r.results[k]==='ok')ok++; else if(r.results[k]==='ng')ng++; }
+    h += '<div class="hist-row">';
+    h += '<div><div style="font-size:15px;font-weight:500">'+d+'</div><div style="font-size:13px;color:var(--c-text2);margin-top:2px">点検者: '+esc(r.inspector||'—')+' / 確認者: '+esc(r.checker||'—')+'</div></div>';
+    h += '<div><span class="pill pill-ok">○ '+ok+'</span> &nbsp; <span class="pill pill-ng">× '+ng+'</span></div>';
+    h += '<div style="color:var(--c-text2);font-size:13px">'+(ok+ng)+'/'+getItems().length+' 完了</div>';
+    h += '<div><button class="btn sm" data-opendate="'+d+'">👁 開く</button></div>';
+    h += '</div>';
+  });
+  return h;
+}
+
+function renderItems(){
+  var m = getMachine();
+  var items = getItems();
+  var ed = STATE.editMode;
+  var dis = ed?'':'disabled';
+  var h = '<div style="padding:14px;background:var(--c-info-bg);border-radius:var(--r-lg);margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:500;color:var(--c-info);margin-bottom:10px">➕ '+esc(m.name)+'の項目を追加 '+(ed?'':'<span style="color:var(--c-warn);font-weight:400">(編集モードをONにしてください)</span>')+'</div>';
+  h += '<div class="item-mgr" style="background:var(--c-bg);grid-template-columns:50px 130px 90px 1fr 40px">';
+  h += '<div style="font-size:13px;color:var(--c-text2)">No.自動</div>';
+  h += '<input id="new-place" placeholder="場所" '+dis+'>';
+  h += '<input id="new-side" placeholder="側(任意)" '+dis+'>';
+  h += '<input id="new-content" placeholder="点検内容" '+dis+'>';
+  h += '<button class="btn sm primary" id="btn-additem" '+dis+' style="width:40px;padding:0">+</button>';
+  h += '</div></div>';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+  h += '<div style="font-size:13px;color:var(--c-text2)">登録済み点検項目 ('+items.length+'件)</div>';
+  h += '<button class="btn sm" id="btn-init" '+dis+'>📥 初期項目を投入</button></div>';
+  items.forEach(function(it){
+    h += '<div class="item-mgr">';
+    h += '<div style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
+    h += '<div style="font-size:13px">'+esc(it.place)+'</div>';
+    h += '<div style="font-size:12px;color:var(--c-text2)">'+esc(it.side||'—')+'</div>';
+    h += '<div style="font-size:14px">'+esc(it.content)+'</div>';
+    h += '<div style="display:flex;gap:4px">';
+    h += '<button class="btn sm" data-edititem="'+it.id+'" '+dis+' style="width:36px;padding:0">✏</button>';
+    h += '<button class="btn sm danger" data-delitem="'+it.id+'" '+dis+' style="width:36px;padding:0">🗑</button>';
+    h += '</div></div>';
+  });
+  return h;
+}
+
+function renderEditModal(){
+  var e = STATE.editingItem;
+  var div = document.createElement('div');
+  div.className = 'modal-bg';
+  div.id = 'edit-modal';
+  div.innerHTML = '<div class="modal">'+
+    '<h3 style="margin:0 0 16px;font-size:18px">点検項目を編集 (No.'+e.no+')</h3>'+
+    '<label>場所</label><input id="edit-place" value="'+esc(e.place)+'">'+
+    '<label>側</label><input id="edit-side" value="'+esc(e.side)+'">'+
+    '<label>内容</label><textarea id="edit-content" style="min-height:80px;resize:vertical">'+esc(e.content)+'</textarea>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button class="btn" id="btn-edit-cancel">キャンセル</button>'+
+    '<button class="btn primary" id="btn-edit-save">💾 保存</button></div></div>';
+  document.body.appendChild(div);
+  div.addEventListener('click', function(ev){ if(ev.target===div){ STATE.editingItem=null; div.remove(); } });
+  el('btn-edit-cancel').onclick = function(){ STATE.editingItem=null; div.remove(); };
+  el('btn-edit-save').onclick = function(){ saveEditItem(); div.remove(); };
+}
+
+function renderMonthly(){
+  var m = getMachine();
+  var items = getItems();
+  var records = getRecords();
+  var days = daysInMonth(STATE.printMonth);
+  var pm = STATE.printMonth.split('-')[1];
+  var xlsxOk = (typeof XLSX !== 'undefined');
+  var h = '<div class="print-config no-print">';
+  h += '<h3 style="margin:0 0 12px;color:var(--c-info)">📅 月次まとめ出力</h3>';
+  h += '<p style="margin:0 0 14px;font-size:14px;color:var(--c-text2)">印刷: <b>'+esc(m.name)+' → '+m.paperSize+'サイズ横向き</b>。</p>';
+  h += '<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">';
+  h += '<div class="field"><label style="font-size:13px;color:var(--c-text2);margin-bottom:4px;display:block">対象月</label>';
+  h += '<input type="month" id="inp-month" value="'+STATE.printMonth+'" style="height:44px;padding:0 12px;font-size:15px;border:1px solid var(--c-bd2);border-radius:var(--r-md)"></div>';
+  h += '<button class="btn primary" id="btn-print">🖨 印刷 ('+m.paperSize+'横)</button>';
+  if(xlsxOk) h += '<button class="btn success" id="btn-excel">📊 Excel(.xlsx)に変換</button>';
+  h += '</div>';
+  if(!xlsxOk) h += '<p style="font-size:12px;color:var(--c-text2);margin-top:10px">※Excel変換は現環境では利用不可。印刷後にPDF保存、またはスプレッドシートから直接Excel出力をご利用ください。</p>';
+  h += '</div>';
+
+  h += '<div style="padding:14px;background:var(--c-bg2);border-radius:var(--r-lg)">';
+  h += '<h3 style="margin:0 0 12px;font-size:15px">'+pm+'月のプレビュー</h3>';
+  h += '<div style="overflow-x:auto;background:#fff;padding:10px;border-radius:var(--r-md)">';
+  h += monthTableHTML(items, records, days, false);
+  h += '</div></div>';
+  return h;
+}
+
+function monthTableHTML(items, records, days, forPrint){
+  var h = '<table'+(forPrint?' class="month-table"':' style="width:100%;border-collapse:collapse;font-size:9px;color:#000"')+'>';
+  h += '<thead><tr'+(forPrint?'':' style="background:#d0d0d0"')+'>';
+  var th = forPrint ? '' : ' style="border:1px solid #333;padding:2px;text-align:center"';
+  h += '<th'+th+'>No.</th><th'+th+'>場所</th><th'+th+'>側</th><th'+th+(forPrint?'':' style="border:1px solid #333;padding:2px;min-width:200px"')+'>点検内容</th>';
+  for(var d=1;d<=days;d++) h += '<th'+(forPrint?' class="day-col"':' style="border:1px solid #333;padding:2px;width:20px;text-align:center"')+'>'+d+'</th>';
+  if(forPrint) h += '<th style="width:90pt">備考</th>';
+  h += '</tr></thead><tbody>';
+  var td = forPrint ? '' : ' style="border:1px solid #333;padding:2px"';
+  items.forEach(function(it){
+    var notes = [];
+    h += '<tr>';
+    h += '<td'+(forPrint?' style="text-align:center"':' style="border:1px solid #333;padding:2px;text-align:center"')+'>'+it.no+'</td>';
+    h += '<td'+td+'>'+esc(it.place)+'</td>';
+    h += '<td'+(forPrint?' style="font-size:6pt"':' style="border:1px solid #333;padding:2px;font-size:8px"')+'>'+esc(it.side)+'</td>';
+    h += '<td'+(forPrint?' style="font-size:7pt"':' style="border:1px solid #333;padding:2px;font-size:8px"')+'>'+esc(it.content)+'</td>';
+    for(var d=1;d<=days;d++){
+      var dk = STATE.printMonth+'-'+pad(d);
+      var rec = records[dk];
+      var v = rec&&rec.results ? rec.results[it.id] : null;
+      var note = rec&&rec.notes ? rec.notes[it.id] : null;
+      if(note&&v==='ng') notes.push(d+'日:'+note);
+      if(forPrint){
+        h += '<td class="'+(v==='ok'?'ok-cell':v==='ng'?'ng-cell':'')+'">'+(v==='ok'?'○':v==='ng'?'×':'')+'</td>';
+      } else {
+        var col = v==='ok'?'#060':v==='ng'?'#c00':'#000';
+        var bg = v==='ng'?'#ffe8e8':'#fff';
+        h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-weight:bold;font-size:11px;color:'+col+';background:'+bg+'">'+(v==='ok'?'○':v==='ng'?'×':'')+'</td>';
+      }
+    }
+    if(forPrint) h += '<td style="font-size:6pt">'+esc(notes.join(' / '))+'</td>';
+    h += '</tr>';
+  });
+  // 点検者・確認者行(印刷時のみ)
+  if(forPrint){
+    ['点検者','確認者'].forEach(function(label,idx){
+      h += '<tr><td colspan="4" style="font-weight:bold;text-align:right;padding-right:6px">'+label+'</td>';
+      for(var d=1;d<=days;d++){
+        var dk = STATE.printMonth+'-'+pad(d);
+        var rec = records[dk];
+        var name = rec ? (idx===0?rec.inspector:rec.checker) : '';
+        h += '<td style="font-size:6pt;text-align:center">'+esc(name?name.slice(0,3):'')+'</td>';
+      }
+      h += '<td></td></tr>';
+    });
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function buildPrintArea(){
+  var m = getMachine();
+  var items = getItems();
+  var records = getRecords();
+  var days = daysInMonth(STATE.printMonth);
+  var pm = STATE.printMonth.split('-')[1];
+  var h = '<div style="padding:4mm;color:#000;font-family:sans-serif">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;border-bottom:2px solid #000;padding-bottom:3px">';
+  h += '<h1 style="margin:0;font-size:14pt">'+esc(pm)+'月度 '+esc(m.name)+esc(m.subtitle)+'</h1>';
+  h += '<div style="font-size:9pt">対象: '+STATE.printMonth+'</div></div>';
+  h += '<div style="font-size:8pt;margin-bottom:4px">※記入方法: 確認をし異常なければ○、異常があれば×に備考に詳細記入。</div>';
+  h += monthTableHTML(items, records, days, true);
+  h += '</div>';
+  el('print-area').innerHTML = h;
+}
+
+// ============================================================
+// イベントハンドラ登録
+// ============================================================
+function attachSyncHandlers(){
+  if(el('btn-refresh')) el('btn-refresh').onclick = refresh;
+  if(el('btn-editmode')) el('btn-editmode').onclick = toggleEditMode;
+}
+function attachHandlers(){
+  // 設備切替
+  var mts = document.querySelectorAll('[data-machine]');
+  for(var i=0;i<mts.length;i++){ mts[i].onclick = (function(mid){ return function(){ switchMachine(mid); }; })(mts[i].getAttribute('data-machine')); }
+  // タブ
+  var tbs = document.querySelectorAll('[data-tab]');
+  for(var i=0;i<tbs.length;i++){ tbs[i].onclick = (function(t){ return function(){ switchTab(t); }; })(tbs[i].getAttribute('data-tab')); }
+  attachSyncHandlers();
+
+  // 点検タブ
+  if(el('inp-date')) el('inp-date').onchange = function(){ STATE.date=this.value; render(); };
+  if(el('inp-inspector')) el('inp-inspector').onchange = function(){ updateMeta('inspector', this.value); };
+  if(el('inp-checker')) el('inp-checker').onchange = function(){ updateMeta('checker', this.value); };
+  var jbs = document.querySelectorAll('[data-result]');
+  for(var i=0;i<jbs.length;i++){
+    jbs[i].onclick = (function(id,val){ return function(){ setResult(id,val); }; })(jbs[i].getAttribute('data-id'), jbs[i].getAttribute('data-result'));
+  }
+  var nts = document.querySelectorAll('[data-note]');
+  for(var i=0;i<nts.length;i++){
+    nts[i].onchange = (function(id){ return function(){ setNote(id, this.value); }; })(nts[i].getAttribute('data-note'));
+  }
+  if(el('btn-clearday')) el('btn-clearday').onclick = clearDay;
+
+  // 履歴タブ
+  var ods = document.querySelectorAll('[data-opendate]');
+  for(var i=0;i<ods.length;i++){ ods[i].onclick = (function(d){ return function(){ openDate(d); }; })(ods[i].getAttribute('data-opendate')); }
+
+  // 項目タブ
+  if(el('btn-additem')) el('btn-additem').onclick = addItem;
+  if(el('btn-init')) el('btn-init').onclick = initializeSheet;
+  if(el('new-content')) el('new-content').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addItem(); };
+  var eis = document.querySelectorAll('[data-edititem]');
+  for(var i=0;i<eis.length;i++){ eis[i].onclick = (function(id){ return function(){ openEditItem(id); }; })(eis[i].getAttribute('data-edititem')); }
+  var dis = document.querySelectorAll('[data-delitem]');
+  for(var i=0;i<dis.length;i++){ dis[i].onclick = (function(id){ return function(){ deleteItem(id); }; })(dis[i].getAttribute('data-delitem')); }
+
+  // 月次タブ
+  if(el('inp-month')) el('inp-month').onchange = function(){ STATE.printMonth=this.value; render(); };
+  if(el('btn-print')) el('btn-print').onclick = doPrintMonth;
+  if(el('btn-excel')) el('btn-excel').onclick = exportExcel;
+}
+
+// renderSyncBar を単独更新できるよう修正
+function renderSyncBar(){
+  var s = STATE.sync;
+  var h = '<div class="sync-bar no-print" id="sync-bar">';
+  h += '<span class="sync-status"><span class="sync-dot '+syncDotClass()+'"></span><span>'+esc(s.message||'待機中')+'</span>';
+  if(s.at) h += '<span style="color:var(--c-text3)">('+s.at+')</span>';
+  h += '</span>';
+  if(SHEET_URL!=='YOUR_SHEET_URL_HERE') h += '<a class="sheet-link" href="'+esc(SHEET_URL)+'" target="_blank" rel="noopener">📊 シートを開く</a>';
+  h += '<button class="btn sm" id="btn-refresh" style="margin-left:auto">🔄 最新を取得</button>';
+  h += '<button class="btn sm '+(STATE.editMode?'warning':'primary')+'" id="btn-editmode">'+(STATE.editMode?'🔒 編集を終える':'✏ 編集モード')+'</button>';
+  h += '</div>';
+  var existing = el('sync-bar');
+  if(existing){ existing.outerHTML = h; attachSyncHandlers(); return ''; }
+  return h;
+}
+
+// ============================================================
+// 起動
+// ============================================================
+try {
+  refresh();
+} catch(e){
+  showFatalError('アプリ起動失敗', e.message + '\n' + (e.stack||''));
+}
+</script>
 </body>
 </html>
