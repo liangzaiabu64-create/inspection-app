@@ -160,10 +160,12 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec
-';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
+// ★★★ 共有シークレットキー ★★★
+// apps_script.gs の SECRET_KEY と必ず同じ値にしてください。
+var SECRET_KEY = 'CHANGE_THIS_SECRET_KEY';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -296,56 +298,74 @@ function currentMonthStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.g
 function timeStr(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
 function pad(n){ return String(n).padStart(2,'0'); }
 function daysInMonth(ym){ var p=ym.split('-'); return new Date(Number(p[0]),Number(p[1]),0).getDate(); }
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function el(id){ return document.getElementById(id); }
 
 // ============================================================
-// Apps Script 通信 (JSONP方式 - CORS完全回避)
+// Apps Script 通信 (fetch GET → 失敗時 JSONP フォールバック)
 // ============================================================
-// 会社ネットワークのCORS/リダイレクト制限を回避するため、
-// fetch ではなく <script> タグ経由でデータを取得する。
-var jsonpCounter = 0;
 function callGAS(action, body, cb, errcb){
   if(!isGasConfigured){ errcb&&errcb(new Error('GAS未設定')); return; }
   body = body || {};
   body.action = action;
+  body.key = SECRET_KEY;  // 認証用シークレットキーを全リクエストに付与
+  // まず fetch GET を試し、ダメなら JSONP にフォールバック
+  fetchGAS(action, body, cb, function(e1){
+    console.warn('fetch失敗、JSONPにフォールバック:', e1.message);
+    jsonpGAS(action, body, cb, function(e2){
+      errcb && errcb(new Error('通信失敗 (fetch: '+e1.message+' / jsonp: '+e2.message+')'));
+    });
+  });
+}
 
-  var cbName = 'gasCallback_' + (jsonpCounter++) + '_' + Date.now();
+// 方式1: fetch GET
+function fetchGAS(action, body, cb, errcb){
+  var payload = encodeURIComponent(JSON.stringify(body));
+  var url = GAS_URL + '?action=' + encodeURIComponent(action) + '&payload=' + payload;
+  var controller = null, timer = null;
+  try { controller = new AbortController(); } catch(e){}
+  var opts = { method:'GET', redirect:'follow' };
+  if(controller){ opts.signal = controller.signal; timer = setTimeout(function(){ controller.abort(); }, 12000); }
+  fetch(url, opts).then(function(res){
+    if(timer) clearTimeout(timer);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.text();
+  }).then(function(text){
+    var data;
+    try { data = JSON.parse(text); } catch(e){ throw new Error('解析失敗'); }
+    if(data.error) throw new Error(data.error);
+    cb && cb(data);
+  }).catch(function(e){
+    if(timer) clearTimeout(timer);
+    errcb && errcb(new Error(e.name==='AbortError'?'タイムアウト':e.message));
+  });
+}
+
+// 方式2: JSONP (<script>タグ)
+var jsonpCounter = 0;
+function jsonpGAS(action, body, cb, errcb){
+  var cbName = 'gasCb_' + (jsonpCounter++) + '_' + Date.now();
   var script = document.createElement('script');
-  var timer = null;
-  var done = false;
-
+  var timer = null, done = false;
   function cleanup(){
     if(timer) clearTimeout(timer);
     try { delete window[cbName]; } catch(e){ window[cbName] = undefined; }
     if(script && script.parentNode) script.parentNode.removeChild(script);
   }
-
   window[cbName] = function(data){
-    if(done) return;
-    done = true;
-    cleanup();
+    if(done) return; done = true; cleanup();
     if(data && data.error){ errcb && errcb(new Error(data.error)); }
     else { cb && cb(data); }
   };
-
-  // タイムアウト(15秒)
   timer = setTimeout(function(){
-    if(done) return;
-    done = true;
-    cleanup();
-    errcb && errcb(new Error('通信タイムアウト(15秒)。ネットワーク制限の可能性があります。'));
-  }, 15000);
-
-  // payload は URL に乗せる。長すぎる場合に備えてencodeする
+    if(done) return; done = true; cleanup();
+    errcb && errcb(new Error('タイムアウト'));
+  }, 12000);
   var payload = encodeURIComponent(JSON.stringify(body));
-  var url = GAS_URL + '?callback=' + cbName + '&payload=' + payload;
-
+  var url = GAS_URL + '?callback=' + cbName + '&action=' + encodeURIComponent(action) + '&payload=' + payload;
   script.onerror = function(){
-    if(done) return;
-    done = true;
-    cleanup();
-    errcb && errcb(new Error('スクリプト読み込み失敗。Apps Script URLを確認してください。'));
+    if(done) return; done = true; cleanup();
+    errcb && errcb(new Error('script読込失敗'));
   };
   script.src = url;
   document.body.appendChild(script);
@@ -601,16 +621,30 @@ function saveEditItem(){
   saveItems(next);
 }
 
+// 保存待ちがあれば即座に送信(画面切替・モード変更の前に呼ぶ)
+function flushSave(){
+  if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+  if(!pendingData) return;
+  var sending = pendingData;
+  pendingData = null;
+  STATE.sync = { state:'syncing', message:'保存中...', at:null };
+  callGAS('saveRecord', sending, function(){
+    STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
+  }, function(e){
+    STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
+  });
+}
+
 function toggleEditMode(){
-  if(STATE.editMode){ STATE.editMode=false; render(); }
+  if(STATE.editMode){ flushSave(); STATE.editMode=false; render(); }
   else if(confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')){
     STATE.editMode=true; render();
   }
 }
 
-function switchMachine(mid){ STATE.machineId=mid; STATE.editingItem=null; render(); }
-function switchTab(t){ STATE.tab=t; render(); }
-function openDate(d){ STATE.date=d; STATE.tab='check'; render(); }
+function switchMachine(mid){ flushSave(); STATE.machineId=mid; STATE.editingItem=null; render(); }
+function switchTab(t){ flushSave(); STATE.tab=t; render(); }
+function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 
 // ============================================================
 // 印刷
@@ -1009,7 +1043,7 @@ function attachHandlers(){
   attachSyncHandlers();
 
   // 点検タブ
-  if(el('inp-date')) el('inp-date').onchange = function(){ STATE.date=this.value; render(); };
+  if(el('inp-date')) el('inp-date').onchange = function(){ flushSave(); STATE.date=this.value; render(); };
   if(el('inp-inspector')) el('inp-inspector').onchange = function(){ updateMeta('inspector', this.value); };
   if(el('inp-checker')) el('inp-checker').onchange = function(){ updateMeta('checker', this.value); };
   var jbs = document.querySelectorAll('[data-result]');
@@ -1048,7 +1082,7 @@ function renderSyncBar(){
   h += '<span class="sync-status"><span class="sync-dot '+syncDotClass()+'"></span><span>'+esc(s.message||'待機中')+'</span>';
   if(s.at) h += '<span style="color:var(--c-text3)">('+s.at+')</span>';
   h += '</span>';
-  if(SHEET_URL!=='YOUR_SHEET_URL_HERE') h += '<a class="sheet-link" href="'+esc(SHEET_URL)+'" target="_blank" rel="noopener">📊 シートを開く</a>';
+  if(SHEET_URL!=='YOUR_SHEET_URL_HERE' && /^https:\/\//.test(SHEET_URL)) h += '<a class="sheet-link" href="'+esc(SHEET_URL)+'" target="_blank" rel="noopener">📊 シートを開く</a>';
   h += '<button class="btn sm" id="btn-refresh" style="margin-left:auto">🔄 最新を取得</button>';
   h += '<button class="btn sm '+(STATE.editMode?'warning':'primary')+'" id="btn-editmode">'+(STATE.editMode?'🔒 編集を終える':'✏ 編集モード')+'</button>';
   h += '</div>';
@@ -1070,6 +1104,15 @@ function updateSyncBar(){
 // ============================================================
 // 起動
 // ============================================================
+// ページを閉じる時、未保存データがあれば警告
+window.addEventListener('beforeunload', function(e){
+  if(pendingData || saveTimer){
+    e.preventDefault();
+    e.returnValue = '保存中のデータがあります。このまま閉じますか?';
+    return e.returnValue;
+  }
+});
+
 try {
   refresh();
 } catch(e){
