@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -375,6 +375,7 @@ var STATE = {
   tab: 'check',
   allItems: { nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS },
   allRecords: { nid: {}, shikomi: {} },
+  allIssues: { nid: [], shikomi: [] },
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
@@ -387,6 +388,7 @@ var pendingData = null;
 
 function getItems(){ return STATE.allItems[STATE.machineId] || []; }
 function getRecords(){ return STATE.allRecords[STATE.machineId] || {}; }
+function getIssues(){ return STATE.allIssues[STATE.machineId] || []; }
 function getCurrent(){ 
   var r = getRecords()[STATE.date];
   return r || { results:{}, notes:{}, inspector:'', checker:'' };
@@ -408,7 +410,10 @@ function refresh(){
         STATE.allItems[mid] = data.items[mid];
       }
       STATE.allRecords[mid] = (data.records && data.records[mid]) || {};
+      STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
     }
+    // NG項目から不具合を自動生成(まだ不具合リストにないものを追加)
+    syncIssuesFromRecords();
     STATE.sync = { state:'online', message:'最新です', at:timeStr() };
     STATE.loading = false;
     render();
@@ -417,6 +422,100 @@ function refresh(){
     STATE.loading = false;
     render();
   });
+}
+
+// NG記録から不具合リストを自動生成
+// 各機械・各項目について、最新のNG発生を拾い、まだ不具合リストに無ければ追加候補にする。
+// 「完了」になっていない限り繰り越される(リストに残り続ける)。
+function syncIssuesFromRecords(){
+  var mids = ['nid','shikomi'];
+  for(var mi=0; mi<mids.length; mi++){
+    var mid = mids[mi];
+    var records = STATE.allRecords[mid] || {};
+    var issues = STATE.allIssues[mid] || [];
+    var items = STATE.allItems[mid] || [];
+    // 既存不具合を itemId+発生日 で索引(重複登録を防ぐ)
+    var existKey = {};
+    issues.forEach(function(is){ existKey[is.itemId + '|' + is.date] = true; });
+    // 各日付の記録を走査し、NGを見つける
+    var newIssues = [];
+    for(var date in records){
+      var rec = records[date];
+      if(!rec || !rec.results) continue;
+      for(var itemId in rec.results){
+        if(rec.results[itemId] !== 'ng') continue;
+        var key = itemId + '|' + date;
+        if(existKey[key]) continue; // 既に登録済み
+        // 同じ項目で「未完了」の不具合が既にあれば、新規追加しない(繰り越し中とみなす)
+        var hasOpen = issues.some(function(is){ return is.itemId===itemId && is.status!=='完了'; });
+        if(hasOpen) continue;
+        var it = null;
+        for(var k=0;k<items.length;k++){ if(items[k].id===itemId){ it=items[k]; break; } }
+        var note = (rec.notes && rec.notes[itemId]) || '';
+        newIssues.push({
+          id: 'iss_' + mid + '_' + itemId + '_' + date.replace(/-/g,''),
+          date: date,
+          itemId: itemId,
+          no: it ? it.no : '',
+          place: it ? it.place : '',
+          side: it ? it.side : '',
+          content: it ? it.content : '',
+          detail: note,
+          assignee: '',
+          status: '未着手',
+          doneDate: '',
+          _unsaved: true  // まだサーバ未保存
+        });
+        existKey[key] = true;
+      }
+    }
+    if(newIssues.length>0){
+      STATE.allIssues[mid] = issues.concat(newIssues);
+      // 新規不具合をサーバに保存
+      if(isGasConfigured){
+        newIssues.forEach(function(is){
+          var toSave = {}; for(var p in is){ if(p!=='_unsaved') toSave[p]=is[p]; }
+          callGAS('saveIssue', { machineId: mid, issue: toSave }, function(){}, function(){});
+        });
+      }
+    }
+  }
+}
+
+// ============================================================
+// 不具合リスト操作
+// ============================================================
+function updateIssue(issueId, field, value){
+  var issues = getIssues();
+  var target = null;
+  for(var i=0;i<issues.length;i++){ if(issues[i].id===issueId){ target=issues[i]; break; } }
+  if(!target) return;
+  target[field] = value;
+  // 完了にしたら完了日を記録、完了解除なら消す
+  if(field==='status'){
+    if(value==='完了' && !target.doneDate){ target.doneDate = todayStr(); }
+    if(value!=='完了'){ target.doneDate = ''; }
+  }
+  // サーバ保存
+  if(isGasConfigured){
+    var toSave = {}; for(var p in target){ if(p!=='_unsaved') toSave[p]=target[p]; }
+    STATE.sync = { state:'syncing', message:'保存中...', at:null }; updateSyncBar();
+    callGAS('saveIssue', { machineId: STATE.machineId, issue: toSave }, function(){
+      STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
+    }, function(e){
+      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
+    });
+  }
+  render();
+}
+
+// 経過日数を計算
+function daysSince(dateStr){
+  if(!dateStr) return 0;
+  var d = new Date(dateStr + 'T00:00:00');
+  var now = new Date();
+  var diff = Math.floor((now - d) / (1000*60*60*24));
+  return diff < 0 ? 0 : diff;
 }
 
 function saveItems(next){
@@ -639,7 +738,7 @@ function toggleEditMode(){
 }
 
 function switchMachine(mid){ flushSave(); STATE.machineId=mid; STATE.editingItem=null; render(); }
-function switchTab(t){ flushSave(); STATE.tab=t; render(); }
+function switchTab(t){ flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); render(); }
 function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 
 // ============================================================
@@ -747,6 +846,7 @@ function render(){
   html += renderSyncBar();
   html += renderTabs();
   if(STATE.tab==='check') html += renderCheck();
+  else if(STATE.tab==='issues') html += renderIssues();
   else if(STATE.tab==='history') html += renderHistory();
   else if(STATE.tab==='items') html += renderItems();
   else if(STATE.tab==='monthly') html += renderMonthly();
@@ -775,7 +875,9 @@ function syncDotClass(){
 
 function renderTabs(){
   var dl = getDateList().length;
-  var tabs = [['check','点検実施'],['history','履歴 ('+dl+')'],['items','項目管理'],['monthly','月次出力']];
+  var openIssues = getIssues().filter(function(is){ return is.status!=='完了'; }).length;
+  var issueLabel = '不具合リスト' + (openIssues>0 ? ' ('+openIssues+')' : '');
+  var tabs = [['check','点検実施'],['issues',issueLabel],['history','履歴 ('+dl+')'],['items','項目管理'],['monthly','月次出力']];
   var h = '<div class="tabs no-print">';
   tabs.forEach(function(t){
     h += '<button class="tab '+(STATE.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
@@ -857,6 +959,73 @@ function attachRowHandlers(row, it){
 }
 function sc(label, value, color){
   return '<div class="sc"><div class="sc-label">'+label+'</div><div class="sc-value" style="color:'+(color||'inherit')+'">'+value+'</div></div>';
+}
+
+function renderIssues(){
+  var m = getMachine();
+  var issues = getIssues();
+  // 未完了を上に、完了を下に。各グループ内は発生日の古い順(古い不具合ほど上)
+  var open = issues.filter(function(is){ return is.status!=='完了'; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var done = issues.filter(function(is){ return is.status==='完了'; }).sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
+
+  var h = '<div style="padding:14px;background:var(--c-danger-bg);border:1px solid var(--c-danger-bd);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
+  h += '<b style="color:var(--c-danger)">'+esc(m.name)+' 不具合リスト</b><br>';
+  h += '点検で×がついた項目が自動で登録されます。「完了」にするまで翌月以降も残り続けます。';
+  h += '</div>';
+
+  if(open.length===0 && done.length===0){
+    h += '<div class="empty">不具合はありません。点検で×をつけると、ここに自動で登録されます。</div>';
+    return h;
+  }
+
+  // 未完了
+  h += '<div style="font-size:14px;font-weight:500;color:var(--c-danger);margin:8px 0">未解決 ('+open.length+'件)</div>';
+  if(open.length===0){
+    h += '<div style="padding:14px;color:var(--c-text2);font-size:13px">未解決の不具合はありません 👍</div>';
+  } else {
+    open.forEach(function(is){ h += issueCard(is); });
+  }
+
+  // 完了
+  if(done.length>0){
+    h += '<div style="font-size:14px;font-weight:500;color:var(--c-success);margin:18px 0 8px">完了済み ('+done.length+'件)</div>';
+    done.forEach(function(is){ h += issueCard(is); });
+  }
+  return h;
+}
+
+function issueCard(is){
+  var days = daysSince(is.date);
+  var statusColors = { '未着手':'var(--c-danger)', '対応中':'var(--c-warn)', '完了':'var(--c-success)' };
+  var sc = statusColors[is.status] || 'var(--c-text2)';
+  var isDone = is.status==='完了';
+  var monthLabel = is.date ? (is.date.split('-')[0]+'年'+is.date.split('-')[1]+'月') : '';
+  var h = '<div style="padding:14px;background:'+(isDone?'var(--c-bg2)':'var(--c-bg)')+';border:1px solid '+(isDone?'var(--c-bd)':'var(--c-danger-bd)')+';border-radius:var(--r-lg);margin-bottom:10px;'+(isDone?'opacity:0.75':'')+'">';
+  // ヘッダ行
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">';
+  h += '<div style="flex:1;min-width:200px">';
+  h += '<div><span class="row-place">'+esc(is.place)+'</span>'+(is.side?'<span class="row-side">'+esc(is.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(is.no)+'</span></div>';
+  h += '<div style="font-size:15px;margin-top:4px">'+esc(is.content)+'</div>';
+  if(is.detail) h += '<div style="font-size:13px;color:var(--c-danger);margin-top:4px;padding:6px 10px;background:var(--c-danger-bg);border-radius:var(--r-md)">不具合: '+esc(is.detail)+'</div>';
+  h += '</div>';
+  // 経過バッジ
+  h += '<div style="text-align:right;font-size:12px;color:var(--c-text2)">';
+  h += '発生: '+esc(monthLabel)+'<br>';
+  if(!isDone){ h += '<span style="color:'+(days>=30?'var(--c-danger)':days>=14?'var(--c-warn)':'var(--c-text2)')+';font-weight:500">経過 '+days+'日</span>'; }
+  else { h += '完了: '+esc(is.doneDate); }
+  h += '</div>';
+  h += '</div>';
+  // 操作行: 担当者・状況
+  h += '<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">';
+  h += '<label style="font-size:12px;color:var(--c-text2)">担当: <input type="text" data-issue-assignee="'+is.id+'" value="'+esc(is.assignee)+'" placeholder="氏名" style="height:34px;width:120px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font)"></label>';
+  h += '<label style="font-size:12px;color:var(--c-text2)">状況: <select data-issue-status="'+is.id+'" style="height:34px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font);color:'+sc+';font-weight:500">';
+  ['未着手','対応中','完了'].forEach(function(s){
+    h += '<option value="'+s+'" '+(is.status===s?'selected':'')+'>'+s+'</option>';
+  });
+  h += '</select></label>';
+  h += '</div>';
+  h += '</div>';
+  return h;
 }
 
 function renderHistory(){
@@ -1055,6 +1224,12 @@ function attachHandlers(){
   // 履歴タブ
   var ods = document.querySelectorAll('[data-opendate]');
   for(var i=0;i<ods.length;i++){ ods[i].onclick = (function(d){ return function(){ openDate(d); }; })(ods[i].getAttribute('data-opendate')); }
+
+  // 不具合タブ
+  var ias = document.querySelectorAll('[data-issue-assignee]');
+  for(var i=0;i<ias.length;i++){ ias[i].onchange = (function(id){ return function(){ updateIssue(id,'assignee',this.value); }; })(ias[i].getAttribute('data-issue-assignee')); }
+  var iss = document.querySelectorAll('[data-issue-status]');
+  for(var i=0;i<iss.length;i++){ iss[i].onchange = (function(id){ return function(){ updateIssue(id,'status',this.value); }; })(iss[i].getAttribute('data-issue-status')); }
 
   // 項目タブ
   if(el('btn-additem')) el('btn-additem').onclick = addItem;
