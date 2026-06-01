@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -1100,32 +1100,24 @@ function sc(label, value, color){
 function renderIssues(){
   var m = getMachine();
   var issues = getIssues();
-  // 未完了を上に、完了を下に。各グループ内は発生日の古い順(古い不具合ほど上)
+  // 未完了のみ表示(完了したものは画面から消す。データはシートに残る)
   var open = issues.filter(function(is){ return is.status!=='完了'; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
-  var done = issues.filter(function(is){ return is.status==='完了'; }).sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
+  var doneCount = issues.filter(function(is){ return is.status==='完了'; }).length;
 
   var h = '<div style="padding:14px;background:var(--c-danger-bg);border:1px solid var(--c-danger-bd);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
   h += '<b style="color:var(--c-danger)">'+esc(m.name)+' 不具合リスト</b><br>';
-  h += '点検で×がついた項目が自動で登録されます。「完了」にするまで翌月以降も残り続けます。';
+  h += '点検で×がついた項目が自動で登録されます。「完了」にすると一覧から消えます(記録はスプレッドシートに残ります)。';
   h += '</div>';
 
-  if(open.length===0 && done.length===0){
-    h += '<div class="empty">不具合はありません。点検で×をつけると、ここに自動で登録されます。</div>';
+  if(open.length===0){
+    h += '<div class="empty">未解決の不具合はありません 👍'+(doneCount>0?'<br><span style="font-size:12px">(完了した不具合 '+doneCount+'件はスプレッドシートに記録されています)</span>':'')+'</div>';
     return h;
   }
 
-  // 未完了
   h += '<div style="font-size:14px;font-weight:500;color:var(--c-danger);margin:8px 0">未解決 ('+open.length+'件)</div>';
-  if(open.length===0){
-    h += '<div style="padding:14px;color:var(--c-text2);font-size:13px">未解決の不具合はありません 👍</div>';
-  } else {
-    open.forEach(function(is){ h += issueCard(is); });
-  }
-
-  // 完了
-  if(done.length>0){
-    h += '<div style="font-size:14px;font-weight:500;color:var(--c-success);margin:18px 0 8px">完了済み ('+done.length+'件)</div>';
-    done.forEach(function(is){ h += issueCard(is); });
+  open.forEach(function(is){ h += issueCard(is); });
+  if(doneCount>0){
+    h += '<div style="font-size:12px;color:var(--c-text2);margin-top:14px;text-align:center">完了した不具合 '+doneCount+'件は一覧から非表示です(スプレッドシートに記録あり)</div>';
   }
   return h;
 }
