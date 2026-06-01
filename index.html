@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -485,7 +485,7 @@ function syncIssuesFromRecords(){
 // ============================================================
 // 不具合リスト操作
 // ============================================================
-function updateIssue(issueId, field, value){
+function updateIssue(issueId, field, value, noRender){
   var issues = getIssues();
   var target = null;
   for(var i=0;i<issues.length;i++){ if(issues[i].id===issueId){ target=issues[i]; break; } }
@@ -506,7 +506,8 @@ function updateIssue(issueId, field, value){
       STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
     });
   }
-  render();
+  // 状況変更など、見た目が大きく変わるものだけ再描画。テキスト入力は再描画しない。
+  if(!noRender) render();
 }
 
 // 経過日数を計算
@@ -1006,7 +1007,6 @@ function issueCard(is){
   h += '<div style="flex:1;min-width:200px">';
   h += '<div><span class="row-place">'+esc(is.place)+'</span>'+(is.side?'<span class="row-side">'+esc(is.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(is.no)+'</span></div>';
   h += '<div style="font-size:15px;margin-top:4px">'+esc(is.content)+'</div>';
-  if(is.detail) h += '<div style="font-size:13px;color:var(--c-danger);margin-top:4px;padding:6px 10px;background:var(--c-danger-bg);border-radius:var(--r-md)">不具合: '+esc(is.detail)+'</div>';
   h += '</div>';
   // 経過バッジ
   h += '<div style="text-align:right;font-size:12px;color:var(--c-text2)">';
@@ -1014,6 +1014,16 @@ function issueCard(is){
   if(!isDone){ h += '<span style="color:'+(days>=30?'var(--c-danger)':days>=14?'var(--c-warn)':'var(--c-text2)')+';font-weight:500">経過 '+days+'日</span>'; }
   else { h += '完了: '+esc(is.doneDate); }
   h += '</div>';
+  h += '</div>';
+  // 不具合内容(編集可)
+  h += '<div style="margin-top:10px">';
+  h += '<label style="font-size:12px;color:var(--c-danger);display:block;margin-bottom:2px">不具合内容</label>';
+  h += '<textarea data-issue-detail="'+is.id+'" placeholder="どのような異常か" style="width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--c-danger-bd);border-radius:var(--r-md);font-size:14px;font-family:var(--font);background:var(--c-danger-bg);color:var(--c-text);box-sizing:border-box;resize:vertical">'+esc(is.detail)+'</textarea>';
+  h += '</div>';
+  // 対応コメント(編集可)
+  h += '<div style="margin-top:8px">';
+  h += '<label style="font-size:12px;color:var(--c-info);display:block;margin-bottom:2px">対応コメント(経緯・進捗メモ)</label>';
+  h += '<textarea data-issue-comment="'+is.id+'" placeholder="対応の経緯や進捗を記入" style="width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--c-info-bd);border-radius:var(--r-md);font-size:14px;font-family:var(--font);background:var(--c-info-bg);color:var(--c-text);box-sizing:border-box;resize:vertical">'+esc(is.comment||'')+'</textarea>';
   h += '</div>';
   // 操作行: 担当者・状況
   h += '<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">';
@@ -1107,7 +1117,7 @@ function renderMonthly(){
   var xlsxOk = (typeof XLSX !== 'undefined');
   var h = '<div class="print-config no-print">';
   h += '<h3 style="margin:0 0 12px;color:var(--c-info)">📅 月次まとめ出力</h3>';
-  h += '<p style="margin:0 0 14px;font-size:14px;color:var(--c-text2)">印刷: <b>'+esc(m.name)+' → '+m.paperSize+'サイズ横向き</b>。</p>';
+  h += '<p style="margin:0 0 14px;font-size:14px;color:var(--c-text2)">印刷: <b>'+esc(m.name)+' → '+m.paperSize+'サイズ横向き</b>。点検表の下に<b>未解決の不具合一覧</b>(繰り越し含む)も印刷されます。</p>';
   h += '<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">';
   h += '<div class="field"><label style="font-size:13px;color:var(--c-text2);margin-bottom:4px;display:block">対象月</label>';
   h += '<input type="month" id="inp-month" value="'+STATE.printMonth+'" style="height:44px;padding:0 12px;font-size:15px;border:1px solid var(--c-bd2);border-radius:var(--r-md)"></div>';
@@ -1187,6 +1197,43 @@ function buildPrintArea(){
   h += '<div style="font-size:9pt">対象: '+STATE.printMonth+'</div></div>';
   h += '<div style="font-size:8pt;margin-bottom:4px">※記入方法: 確認をし異常なければ○、異常があれば×に備考に詳細記入。</div>';
   h += monthTableHTML(items, records, days, true);
+
+  // 未完了の不具合一覧(過去月からの繰り越し含む)
+  var openIssues = getIssues().filter(function(is){ return is.status!=='完了'; })
+    .sort(function(a,b){ return a.date.localeCompare(b.date); });
+  h += '<div style="margin-top:10px;page-break-inside:auto">';
+  h += '<div style="font-size:11pt;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;margin-bottom:4px">未解決の不具合一覧 ('+openIssues.length+'件) ※前月からの繰り越し含む</div>';
+  if(openIssues.length===0){
+    h += '<div style="font-size:9pt">未解決の不具合はありません。</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse;font-size:8pt;color:#000">';
+    h += '<thead><tr style="background:#f4cccc">';
+    h += '<th style="border:1px solid #333;padding:2px;width:30pt">発生月</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:28pt">経過</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:55pt">場所</th>';
+    h += '<th style="border:1px solid #333;padding:2px">点検内容</th>';
+    h += '<th style="border:1px solid #333;padding:2px">不具合内容</th>';
+    h += '<th style="border:1px solid #333;padding:2px">対応コメント</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:40pt">担当</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:36pt">状況</th>';
+    h += '</tr></thead><tbody>';
+    openIssues.forEach(function(is){
+      var mlabel = is.date ? (is.date.split('-')[1]+'/'+is.date.split('-')[0].slice(2)) : '';
+      h += '<tr>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+daysSince(is.date)+'日</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.detail||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.comment||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.assignee||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.status)+'</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+
   h += '</div>';
   el('print-area').innerHTML = h;
 }
@@ -1226,8 +1273,12 @@ function attachHandlers(){
   for(var i=0;i<ods.length;i++){ ods[i].onclick = (function(d){ return function(){ openDate(d); }; })(ods[i].getAttribute('data-opendate')); }
 
   // 不具合タブ
+  var ids = document.querySelectorAll('[data-issue-detail]');
+  for(var i=0;i<ids.length;i++){ ids[i].onchange = (function(id){ return function(){ updateIssue(id,'detail',this.value,true); }; })(ids[i].getAttribute('data-issue-detail')); }
+  var ics = document.querySelectorAll('[data-issue-comment]');
+  for(var i=0;i<ics.length;i++){ ics[i].onchange = (function(id){ return function(){ updateIssue(id,'comment',this.value,true); }; })(ics[i].getAttribute('data-issue-comment')); }
   var ias = document.querySelectorAll('[data-issue-assignee]');
-  for(var i=0;i<ias.length;i++){ ias[i].onchange = (function(id){ return function(){ updateIssue(id,'assignee',this.value); }; })(ias[i].getAttribute('data-issue-assignee')); }
+  for(var i=0;i<ias.length;i++){ ias[i].onchange = (function(id){ return function(){ updateIssue(id,'assignee',this.value,true); }; })(ias[i].getAttribute('data-issue-assignee')); }
   var iss = document.querySelectorAll('[data-issue-status]');
   for(var i=0;i<iss.length;i++){ iss[i].onchange = (function(id){ return function(){ updateIssue(id,'status',this.value); }; })(iss[i].getAttribute('data-issue-status')); }
 
