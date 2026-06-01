@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -752,27 +752,42 @@ function addItem(){
   var content = el('new-content').value;
   if(!content.trim()){ alert('内容を入力してください'); return; }
   var items = getItems();
-  var no;
-  if(noInput !== ''){
-    no = parseInt(noInput, 10);
-    if(isNaN(no) || no < 0){ alert('No.は数字で入力してください'); return; }
-  } else {
-    // 自動採番:最大No.+1
-    var maxNo = 0;
-    for(var i=0;i<items.length;i++) if(items[i].no>maxNo) maxNo=items[i].no;
-    no = maxNo + 1;
-  }
-  // idは時刻ベースで一意に(No.が重複・変更されても安全)
   var newId = 'item_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  var newItem = { no:0, id:newId, place:place, side:side, content:content };
   var next = items.slice();
-  next.push({ no:no, id:newId, place:place, side:side, content:content });
-  // No.順に並べ替え
-  next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+
+  if(noInput !== ''){
+    var insNo = parseInt(noInput, 10);
+    if(isNaN(insNo) || insNo < 1){ alert('No.は1以上の数字で入力してください'); return; }
+    // No.順に並べ、指定位置に挿入。以降は自動で繰り下がる(連番振り直し)
+    next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+    // 挿入位置を決定: 指定No.以上の最初の項目の前に入れる
+    var insertIdx = next.length;
+    for(var i=0;i<next.length;i++){
+      if((next[i].no||0) >= insNo){ insertIdx = i; break; }
+    }
+    newItem.no = insNo;
+    next.splice(insertIdx, 0, newItem);
+  } else {
+    // 自動採番:末尾に追加
+    next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+    next.push(newItem);
+  }
+  // 全体を1から連番に振り直し(これで重複や飛びが解消され、常に整然と並ぶ)
+  renumber(next);
   saveItems(next);
+}
+
+// 配列の項目を、並び順のまま 1,2,3,... に振り直す
+function renumber(arr){
+  for(var i=0;i<arr.length;i++){ arr[i].no = i+1; }
 }
 function deleteItem(id){
   if(!confirm('この点検項目を削除しますか?')) return;
   var next = getItems().filter(function(it){ return it.id!==id; });
+  // 削除後、欠番が出ないよう連番に振り直す
+  next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+  renumber(next);
   saveItems(next);
 }
 function openEditItem(id){
@@ -782,15 +797,31 @@ function openEditItem(id){
 function saveEditItem(){
   var e = STATE.editingItem;
   var noInput = el('edit-no') ? el('edit-no').value.trim() : '';
+  var moved = false;
+  var targetNo = null;
   if(noInput !== ''){
     var n = parseInt(noInput, 10);
-    if(!isNaN(n) && n >= 0) e.no = n;
+    if(!isNaN(n) && n >= 1){ targetNo = n; moved = (n !== e.no); }
   }
   e.place = el('edit-place').value;
   e.side = el('edit-side').value;
   e.content = el('edit-content').value;
   var next = getItems().map(function(it){ return it.id===e.id ? e : it; });
-  next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+  if(targetNo !== null && moved){
+    // No.を変更した場合: いったん対象を外し、指定位置に挿入して全体再採番
+    var others = next.filter(function(it){ return it.id !== e.id; });
+    others.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+    var insertIdx = others.length;
+    for(var i=0;i<others.length;i++){
+      if((others[i].no||0) >= targetNo){ insertIdx = i; break; }
+    }
+    e.no = targetNo;
+    others.splice(insertIdx, 0, e);
+    next = others;
+  } else {
+    next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
+  }
+  renumber(next);
   STATE.editingItem = null;
   saveItems(next);
 }
@@ -1145,7 +1176,7 @@ function renderItems(){
   h += '<input id="new-content" placeholder="点検内容" '+dis+'>';
   h += '<button class="btn sm primary" id="btn-additem" '+dis+' style="width:40px;padding:0">+</button>';
   h += '</div>';
-  h += '<div style="font-size:12px;color:var(--c-text2);margin-top:6px">※No.を空欄にすると自動で次の番号が振られます。番号を指定すると並び順もその番号順になります。</div>';
+  h += '<div style="font-size:12px;color:var(--c-text2);margin-top:6px">※No.を空欄にすると末尾に追加。番号を指定するとその位置に挿入され、以降の番号は自動で繰り下がります(常に1から連番に整理されます)。</div>';
   h += '</div>';
   h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
   h += '<div style="font-size:13px;color:var(--c-text2)">登録済み点検項目 ('+items.length+'件)</div>';
