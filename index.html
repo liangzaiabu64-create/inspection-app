@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -543,42 +543,73 @@ function saveItems(next){
   if(!isGasConfigured){ render(); return; }
   STATE.sync = { state:'syncing', message:'保存中...', at:null };
   render();
-  // JSONPのURL長制限を避けるため、項目を5件ずつチャンク送信
   var mid = STATE.machineId;
-  var chunkSize = 5;
-  var chunks = [];
-  for(var i=0;i<next.length;i+=chunkSize){ chunks.push(next.slice(i, i+chunkSize)); }
-  if(chunks.length === 0) chunks.push([]); // 空でも1回送ってクリア
-  var idx = 0;
-  function sendNext(){
-    if(idx >= chunks.length){
+  // 項目全体を1回のPOSTで送る(チャンク分割の途中失敗による欠落を防ぐ)
+  postGAS('saveItems', { machineId: mid, items: next }, function(){
+    STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
+  }, function(e){
+    // POSTが失敗した場合はチャンク送信にフォールバック
+    console.warn('POST失敗、チャンク送信にフォールバック:', e.message);
+    saveItemsChunked(mid, next, function(){
       STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
-      return;
-    }
-    var ci = idx;
-    callGAS('saveItemsChunk', { machineId: mid, items: chunks[ci], chunkIndex: ci, isLast: (ci===chunks.length-1) }, function(){
-      idx++;
-      STATE.sync = { state:'syncing', message:'保存中... ('+idx+'/'+chunks.length+')', at:null }; updateSyncBar();
-      sendNext();
-    }, function(e){
-      STATE.sync = { state:'error', message:'保存失敗: '+e.message, at:null }; updateSyncBar();
+    }, function(e2){
+      STATE.sync = { state:'error', message:'保存失敗: '+e2.message+' (データ保護のため画面の項目は維持されています。再度お試しください)', at:null }; updateSyncBar();
     });
-  }
-  sendNext();
+  });
+}
+
+// POST送信(URL長制限がないので大きなデータ向き)
+function postGAS(action, body, cb, errcb){
+  if(!isGasConfigured){ errcb&&errcb(new Error('GAS未設定')); return; }
+  body = body || {};
+  body.action = action;
+  var controller = null, timer = null;
+  try { controller = new AbortController(); } catch(e){}
+  var opts = {
+    method:'POST',
+    redirect:'follow',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body)
+  };
+  if(controller){ opts.signal = controller.signal; timer = setTimeout(function(){ controller.abort(); }, 20000); }
+  fetch(GAS_URL, opts).then(function(res){
+    if(timer) clearTimeout(timer);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return res.text();
+  }).then(function(text){
+    var data;
+    try { data = JSON.parse(text); } catch(e){ throw new Error('解析失敗'); }
+    if(data.error) throw new Error(data.error);
+    cb && cb(data);
+  }).catch(function(e){
+    if(timer) clearTimeout(timer);
+    errcb && errcb(new Error(e.name==='AbortError'?'タイムアウト':e.message));
+  });
 }
 
 function initializeSheet(){
   if(!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
   STATE.sync = { state:'syncing', message:'初期化中...', at:null }; updateSyncBar();
   callGAS('init', {}, function(){
-    // NID項目をチャンク送信 → 完了後 仕込み項目をチャンク送信
+    // NID項目をPOSTで一括送信 → 完了後 仕込み項目を送信
+    postGAS('saveItems', { machineId:'nid', items: NID_ITEMS }, function(){
+      postGAS('saveItems', { machineId:'shikomi', items: SHIKOMI_ITEMS }, function(){
+        refresh();
+        alert('初期化完了しました(NID 58項目・仕込み 48項目)');
+      }, function(e){ tryChunkFallback(); });
+    }, function(e){ tryChunkFallback(); });
+  }, syncErr);
+
+  // POSTが通らない環境用のフォールバック(チャンク送信)
+  function tryChunkFallback(){
+    STATE.sync = { state:'syncing', message:'初期化中(分割送信)...', at:null }; updateSyncBar();
     sendItemsChunked('nid', NID_ITEMS, function(){
       sendItemsChunked('shikomi', SHIKOMI_ITEMS, function(){
         refresh();
-        alert('初期化完了しました');
+        alert('初期化完了しました(NID 58項目・仕込み 48項目)');
       }, syncErr);
     }, syncErr);
-  }, syncErr);
+  }
   function syncErr(e){ STATE.sync={state:'error',message:'初期化失敗: '+e.message,at:null}; updateSyncBar(); }
 }
 
