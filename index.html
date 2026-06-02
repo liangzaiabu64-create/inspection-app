@@ -160,9 +160,9 @@ function showFatalError(title, detail) {
 // 設定 - ここを書き換えてください
 // ============================================================
 // ★★★ Apps Script ウェブアプリ URL ★★★
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var GAS_URL = 'YOUR_GAS_URL_HERE';
 // ★★★ スプレッドシートURL(任意) ★★★
-var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
+var SHEET_URL = 'YOUR_SHEET_URL_HERE';
 
 var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
@@ -517,12 +517,23 @@ function updateIssue(issueId, field, value, noRender){
   var target = null;
   for(var i=0;i<issues.length;i++){ if(issues[i].id===issueId){ target=issues[i]; break; } }
   if(!target) return;
-  target[field] = value;
-  // 完了にしたら完了日を記録、完了解除なら消す
-  if(field==='status'){
-    if(value==='完了' && !target.doneDate){ target.doneDate = todayStr(); }
-    if(value!=='完了'){ target.doneDate = ''; }
+
+  // 「完了」にした場合: 完了済みシートへ移動し、画面リストからも除去
+  if(field==='status' && value==='完了'){
+    target.status = '完了';
+    if(!target.doneDate) target.doneDate = todayStr();
+    // ローカルリストから除去(画面から消える)
+    STATE.allIssues[STATE.machineId] = issues.filter(function(x){ return x.id !== issueId; });
+    // サーバ側で完了済みシートへ移動(不具合シートから削除)
+    if(isGasConfigured){
+      var toSave = {}; for(var p in target){ if(p!=='_unsaved') toSave[p]=target[p]; }
+      enqueueSave({ machineId: STATE.machineId, issue: toSave }, 'completeIssue');
+    }
+    render();
+    return;
   }
+
+  target[field] = value;
   // サーバ保存(debounceで連続編集をまとめる)
   scheduleIssueSave(target);
   // 状況変更など、見た目が大きく変わるものだけ再描画。テキスト入力は再描画しない。
@@ -559,7 +570,7 @@ function saveItems(next){
 }
 
 // POST送信(URL長制限がないので大きなデータ向き)
-function postGAS(action, body, cb, errcb){
+function postGAS(action, body, cb, errcb, timeoutMs){
   if(!isGasConfigured){ errcb&&errcb(new Error('GAS未設定')); return; }
   body = body || {};
   body.action = action;
@@ -571,7 +582,7 @@ function postGAS(action, body, cb, errcb){
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify(body)
   };
-  if(controller){ opts.signal = controller.signal; timer = setTimeout(function(){ controller.abort(); }, 20000); }
+  if(controller){ opts.signal = controller.signal; timer = setTimeout(function(){ controller.abort(); }, timeoutMs || 20000); }
   fetch(GAS_URL, opts).then(function(res){
     if(timer) clearTimeout(timer);
     if(!res.ok) throw new Error('HTTP '+res.status);
@@ -585,6 +596,92 @@ function postGAS(action, body, cb, errcb){
     if(timer) clearTimeout(timer);
     errcb && errcb(new Error(e.name==='AbortError'?'タイムアウト':e.message));
   });
+}
+
+// ============================================================
+// 見本写真: 縮小 → アップロード → 表示
+// ============================================================
+// 画像ファイルを読み込み、最大幅/高さに縮小してJPEGのdataURLを返す
+function shrinkImage(file, maxSize, cb, errcb){
+  maxSize = maxSize || 1000;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      if(w > h){ if(w > maxSize){ h = Math.round(h * maxSize / w); w = maxSize; } }
+      else { if(h > maxSize){ w = Math.round(w * maxSize / h); h = maxSize; } }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      try {
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        cb(dataUrl);
+      } catch(e){ errcb && errcb(new Error('画像変換に失敗しました')); }
+    };
+    img.onerror = function(){ errcb && errcb(new Error('画像の読み込みに失敗しました')); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function(){ errcb && errcb(new Error('ファイルの読み込みに失敗しました')); };
+  reader.readAsDataURL(file);
+}
+
+// 見本写真をアップロード
+function uploadPhoto(itemId, file){
+  if(!isGasConfigured){ alert('Apps Scriptが未設定です'); return; }
+  STATE.sync = { state:'syncing', message:'写真を処理中...', at:null }; updateSyncBar();
+  shrinkImage(file, 1000, function(dataUrl){
+    STATE.sync = { state:'syncing', message:'写真をアップロード中...', at:null }; updateSyncBar();
+    postGAS('uploadPhoto', { machineId: STATE.machineId, itemId: itemId, imageData: dataUrl, mimeType: 'image/jpeg' }, function(res){
+      // 成功: ローカルの項目にphotoIdを反映
+      var items = getItems();
+      for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ items[i].photoId = res.photoId; break; } }
+      STATE.sync = { state:'editing', message:'写真を保存しました', at:timeStr() };
+      render();
+    }, function(e){
+      STATE.sync = { state:'error', message:'写真アップロード失敗: '+e.message, at:null }; updateSyncBar();
+      alert('写真のアップロードに失敗しました: '+e.message);
+    }, 40000); // 画像は時間がかかるので40秒
+  }, function(e){
+    STATE.sync = { state:'error', message:e.message, at:null }; updateSyncBar();
+    alert(e.message);
+  });
+}
+
+// 写真IDから表示用URLを作る(Google Driveのサムネイル/閲覧URL)
+function photoUrl(photoId, thumb){
+  if(!photoId) return '';
+  if(thumb){
+    // サムネイル(軽量)
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(photoId) + '&sz=w400';
+  }
+  // 拡大表示用
+  return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(photoId) + '&sz=w1600';
+}
+
+// 写真を削除(項目のphotoIdを空にして保存)
+function removePhoto(itemId){
+  if(!confirm('この見本写真を削除しますか?')) return;
+  var items = getItems();
+  for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ items[i].photoId = ''; break; } }
+  saveItems(items.slice());
+  render();
+}
+
+// 写真拡大モーダル
+function openPhotoModal(photoId){
+  if(!photoId) return;
+  var div = document.createElement('div');
+  div.className = 'modal-bg';
+  div.id = 'photo-modal';
+  div.innerHTML = '<div style="max-width:90vw;max-height:90vh;text-align:center">'+
+    '<img src="'+photoUrl(photoId,false)+'" style="max-width:90vw;max-height:80vh;border-radius:8px;background:#fff" alt="見本写真">'+
+    '<div style="margin-top:10px"><button class="btn" id="photo-close">閉じる</button></div></div>';
+  document.body.appendChild(div);
+  div.addEventListener('click', function(ev){ if(ev.target===div){ div.remove(); } });
+  var cb = document.getElementById('photo-close');
+  if(cb) cb.onclick = function(){ div.remove(); };
 }
 
 function initializeSheet(){
@@ -1102,23 +1199,19 @@ function renderIssues(){
   var issues = getIssues();
   // 未完了のみ表示(完了したものは画面から消す。データはシートに残る)
   var open = issues.filter(function(is){ return is.status!=='完了'; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
-  var doneCount = issues.filter(function(is){ return is.status==='完了'; }).length;
 
   var h = '<div style="padding:14px;background:var(--c-danger-bg);border:1px solid var(--c-danger-bd);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
   h += '<b style="color:var(--c-danger)">'+esc(m.name)+' 不具合リスト</b><br>';
-  h += '点検で×がついた項目が自動で登録されます。「完了」にすると一覧から消えます(記録はスプレッドシートに残ります)。';
+  h += '点検で×がついた項目が自動で登録されます。「完了」にすると一覧から消え、スプレッドシートの「完了済み」シートへ移動します。';
   h += '</div>';
 
   if(open.length===0){
-    h += '<div class="empty">未解決の不具合はありません 👍'+(doneCount>0?'<br><span style="font-size:12px">(完了した不具合 '+doneCount+'件はスプレッドシートに記録されています)</span>':'')+'</div>';
+    h += '<div class="empty">未解決の不具合はありません 👍</div>';
     return h;
   }
 
   h += '<div style="font-size:14px;font-weight:500;color:var(--c-danger);margin:8px 0">未解決 ('+open.length+'件)</div>';
   open.forEach(function(is){ h += issueCard(is); });
-  if(doneCount>0){
-    h += '<div style="font-size:12px;color:var(--c-text2);margin-top:14px;text-align:center">完了した不具合 '+doneCount+'件は一覧から非表示です(スプレッドシートに記録あり)</div>';
-  }
   return h;
 }
 
