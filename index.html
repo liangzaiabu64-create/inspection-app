@@ -126,6 +126,83 @@
 
   .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #e0e0e0; border-top-color: var(--c-info); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================
+     スマホ専用(画面幅600px以下のときだけ適用)
+     ※PC表示には一切影響しません
+     ============================================================ */
+  @media (max-width: 600px) {
+    body { padding: 8px; }
+    #wrap { padding: 12px; border-radius: var(--r-md); }
+
+    /* 設備切替: 文字を大きく、押しやすく */
+    .machine-selector { gap: 6px; padding: 5px; }
+    .machine-tab { padding: 14px 8px; font-size: 16px; line-height: 1.3; }
+    .machine-tab .badge { display: block; margin-left: 0; margin-top: 4px; font-size: 12px; }
+
+    /* タブ: 横スクロールではみ出しを防ぎ、文字を大きく */
+    .tabs { gap: 6px; }
+    .tab { padding: 12px 14px; font-size: 15px; min-height: 50px; flex: 1 1 auto; }
+
+    /* 同期バー */
+    .sync-bar { font-size: 14px; padding: 12px; }
+
+    /* 点検実施: 入力欄を縦積み・全幅に */
+    .top-bar { padding: 12px; gap: 12px; }
+    .top-bar .field { width: 100%; }
+    .top-bar input { width: 100%; height: 50px; font-size: 17px; }
+    .top-bar label { font-size: 14px; }
+
+    /* サマリー: 4列→2列に */
+    .summary { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .sc { padding: 14px; }
+    .sc-label { font-size: 14px; }
+    .sc-value { font-size: 30px; }
+
+    .group-header { font-size: 16px; padding: 10px 14px; }
+
+    /* 点検実施の行: 縦積みにして判定ボタンを大きく横いっぱいに */
+    .check-row,
+    .check-row.has-photo { grid-template-columns: 1fr; gap: 10px; padding: 16px; }
+    .row-no { width: 40px; height: 40px; font-size: 17px; }
+    .row-photo { width: 100%; height: 160px; }
+    .row-content { font-size: 17px; line-height: 1.6; }
+    .row-place, .row-side { font-size: 14px; padding: 4px 12px; }
+    .judge-group { width: 100%; gap: 12px; }
+    .judge-btn { flex: 1; width: auto; height: 64px; font-size: 30px; }
+    .ng-note textarea { font-size: 16px; min-height: 64px; }
+
+    /* ボタン: 全体的に大きく */
+    .btn { height: 52px; font-size: 16px; }
+    .btn.sm { height: 44px; font-size: 15px; }
+
+    /* 項目管理: 行を縦積みにして読みやすく */
+    .item-mgr,
+    .item-mgr.item-mgr-photo { grid-template-columns: 1fr; gap: 8px; padding: 14px; }
+    .item-mgr input { height: 50px; font-size: 17px; }
+    /* 追加フォームの「No.」「場所」「側」「内容」「+」を縦並びに */
+    .item-mgr-add-mobile { grid-template-columns: 1fr !important; }
+    /* 登録済みリストの各項目 */
+    .item-row-no { font-size: 18px !important; }
+    .item-row-place { font-size: 16px !important; }
+    .item-row-side { font-size: 14px !important; }
+    .item-row-content { font-size: 16px !important; line-height: 1.6; }
+    .item-thumb { width: 100%; height: 140px; }
+    .item-thumb-empty { height: 60px; font-size: 13px; }
+    .item-actions { display: flex; gap: 10px; }
+    .item-actions .btn { flex: 1; width: auto !important; height: 50px; }
+
+    /* 編集モーダル: ほぼ全画面に広げ、文字と入力欄を大きく */
+    .modal-bg { padding: 10px; }
+    .modal { padding: 18px; max-height: 94vh; }
+    .modal h3 { font-size: 20px; }
+    .modal label { font-size: 15px; }
+    .modal input, .modal textarea { font-size: 17px; padding: 12px; }
+    .photo-edit { flex-direction: column; }
+    .photo-edit-thumb, .photo-edit-empty { width: 100%; height: 180px; }
+    .photo-edit-btns { flex-direction: row; flex-wrap: wrap; width: 100%; }
+    .photo-edit-btns .btn { flex: 1; }
+  }
 </style>
 </head>
 <body>
@@ -1306,7 +1383,7 @@ function renderItems(){
   var dis = ed?'':'disabled';
   var h = '<div style="padding:14px;background:var(--c-info-bg);border-radius:var(--r-lg);margin-bottom:14px">';
   h += '<div style="font-size:14px;font-weight:500;color:var(--c-info);margin-bottom:10px">➕ '+esc(m.name)+'の項目を追加 '+(ed?'':'<span style="color:var(--c-warn);font-weight:400">(編集モードをONにしてください)</span>')+'</div>';
-  h += '<div class="item-mgr" style="background:var(--c-bg);grid-template-columns:50px 130px 90px 1fr 40px">';
+  h += '<div class="item-mgr item-mgr-add-mobile" style="background:var(--c-bg);grid-template-columns:50px 130px 90px 1fr 40px">';
   h += '<input id="new-no" placeholder="No." '+dis+' style="text-align:center" inputmode="numeric">';
   h += '<input id="new-place" placeholder="場所" '+dis+'>';
   h += '<input id="new-side" placeholder="側(任意)" '+dis+'>';
@@ -1320,16 +1397,16 @@ function renderItems(){
   h += '<button class="btn sm" id="btn-init" '+dis+'>📥 初期項目を投入</button></div>';
   items.forEach(function(it){
     h += '<div class="item-mgr item-mgr-photo">';
-    h += '<div style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
+    h += '<div class="item-row-no" style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
     if(it.photoId){
       h += '<img class="item-thumb" src="'+photoUrl(it.photoId,true)+'" data-photo="'+it.photoId+'" alt="見本写真" loading="lazy">';
     } else {
       h += '<div class="item-thumb item-thumb-empty">写真なし</div>';
     }
-    h += '<div style="font-size:13px">'+esc(it.place)+'</div>';
-    h += '<div style="font-size:12px;color:var(--c-text2)">'+esc(it.side||'—')+'</div>';
-    h += '<div style="font-size:14px">'+esc(it.content)+'</div>';
-    h += '<div style="display:flex;gap:4px">';
+    h += '<div class="item-row-place" style="font-size:13px">'+esc(it.place)+'</div>';
+    h += '<div class="item-row-side" style="font-size:12px;color:var(--c-text2)">'+esc(it.side||'—')+'</div>';
+    h += '<div class="item-row-content" style="font-size:14px">'+esc(it.content)+'</div>';
+    h += '<div class="item-actions" style="display:flex;gap:4px">';
     h += '<button class="btn sm" data-edititem="'+it.id+'" '+dis+' style="width:36px;padding:0">✏</button>';
     h += '<button class="btn sm danger" data-delitem="'+it.id+'" '+dis+' style="width:36px;padding:0">🗑</button>';
     h += '</div></div>';
