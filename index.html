@@ -64,10 +64,12 @@
 
   .group-header { background: var(--c-bg2); padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 500; color: var(--c-text2); margin: 14px 0 8px; }
   .check-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 14px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-lg); margin-bottom: 8px; }
+  .check-row.has-photo { grid-template-columns: 44px 52px 1fr auto; }
   .check-row.is-ng { border-color: var(--c-danger-bd); background: var(--c-danger-bg); }
   .check-row.is-ok { border-color: var(--c-success-bd); }
   .check-row.readonly { opacity: 0.85; }
   .row-no { width: 44px; height: 44px; border-radius: 50%; background: var(--c-bg2); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; color: var(--c-text2); }
+  .row-photo { width: 52px; height: 52px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-bd); cursor: pointer; background: var(--c-bg2); }
   .row-body { min-width: 0; }
   .row-place { font-size: 12px; color: var(--c-text2); background: var(--c-bg2); padding: 3px 10px; border-radius: var(--r-md); display: inline-block; margin-bottom: 6px; }
   .row-side { font-size: 12px; color: var(--c-info); background: var(--c-info-bg); padding: 3px 10px; border-radius: var(--r-md); display: inline-block; margin-bottom: 6px; margin-left: 4px; }
@@ -96,7 +98,14 @@
   .pill-ng { background: var(--c-danger-bg); color: var(--c-danger); }
 
   .item-mgr { display: grid; grid-template-columns: 50px 130px 90px 1fr 80px; gap: 8px; align-items: center; padding: 10px 12px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-md); margin-bottom: 6px; }
+  .item-mgr.item-mgr-photo { grid-template-columns: 50px 56px 130px 90px 1fr 80px; }
   .item-mgr input { width: 100%; height: 38px; padding: 0 10px; font-size: 14px; border: 1px solid var(--c-bd); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); box-sizing: border-box; }
+  .item-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-bd); cursor: pointer; background: var(--c-bg2); }
+  .item-thumb-empty { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--c-text3); cursor: default; text-align: center; line-height: 1.2; }
+  .photo-edit { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 4px; }
+  .photo-edit-thumb { width: 96px; height: 96px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-bd); cursor: pointer; background: var(--c-bg2); flex-shrink: 0; }
+  .photo-edit-empty { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--c-text3); cursor: default; }
+  .photo-edit-btns { display: flex; flex-direction: column; gap: 8px; }
 
   .empty { text-align: center; padding: 40px 20px; color: var(--c-text2); font-size: 14px; background: var(--c-bg2); border-radius: var(--r-lg); }
   .progress-bar { height: 8px; background: var(--c-bg2); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
@@ -164,7 +173,7 @@ var GAS_URL = 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannU
 // ★★★ スプレッドシートURL(任意) ★★★
 var SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vbCCcqwbwKlIQCl6vC8_UPWiAbX5FM8vkLjnQhMQUuo/edit';
 
-var isGasConfigured = GAS_URL !== 'https://script.google.com/macros/s/AKfycbz_fo83UV1yll1Ika8saxannUa3KrGTtt-dCkrZIb_7wIzKvvy_3vOT6q1OiD86ZWk/exec';
+var isGasConfigured = GAS_URL !== 'YOUR_GAS_URL_HERE';
 
 // ============================================================
 // 点検項目データ
@@ -637,6 +646,8 @@ function uploadPhoto(itemId, file){
       // 成功: ローカルの項目にphotoIdを反映
       var items = getItems();
       for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ items[i].photoId = res.photoId; break; } }
+      // 編集モーダルを開いたままなら、そのクローンにも反映
+      if(STATE.editingItem && STATE.editingItem.id===itemId){ STATE.editingItem.photoId = res.photoId; }
       STATE.sync = { state:'editing', message:'写真を保存しました', at:timeStr() };
       render();
     }, function(e){
@@ -665,6 +676,8 @@ function removePhoto(itemId){
   if(!confirm('この見本写真を削除しますか?')) return;
   var items = getItems();
   for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ items[i].photoId = ''; break; } }
+  // 編集モーダルを開いたままなら、そのクローンにも反映
+  if(STATE.editingItem && STATE.editingItem.id===itemId){ STATE.editingItem.photoId = ''; }
   saveItems(items.slice());
   render();
 }
@@ -771,7 +784,7 @@ function updateCheckRow(itemId){
   if(!it) return;
   var v = cur.results[itemId];
   var note = cur.notes[itemId]||'';
-  row.className = 'check-row ' + (v==='ok'?'is-ok':v==='ng'?'is-ng':'') + ' ' + (STATE.editMode?'':'readonly');
+  row.className = 'check-row ' + (v==='ok'?'is-ok':v==='ng'?'is-ng':'') + (it.photoId?' has-photo':'') + ' ' + (STATE.editMode?'':'readonly');
   row.innerHTML = checkRowInner(it, v, note);
   attachRowHandlers(row, it);
 }
@@ -1149,6 +1162,7 @@ function renderCheck(){
       var v = cur.results[it.id];
       var note = cur.notes[it.id]||'';
       var cls = v==='ok'?'is-ok':v==='ng'?'is-ng':'';
+      if(it.photoId) cls += ' has-photo';
       h += '<div class="check-row '+cls+' '+(ed?'':'readonly')+'" data-row="'+it.id+'">';
       h += checkRowInner(it, v, note);
       h += '</div>';
@@ -1167,6 +1181,9 @@ function checkRowInner(it, v, note){
   var dis = STATE.editMode ? '' : 'disabled';
   var h = '';
   h += '<div class="row-no">'+it.no+'</div>';
+  if(it.photoId){
+    h += '<img class="row-photo" src="'+photoUrl(it.photoId,true)+'" data-photo="'+it.photoId+'" alt="見本写真" loading="lazy">';
+  }
   h += '<div class="row-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
   h += '<div class="row-content">'+esc(it.content)+'</div></div>';
   h += '<div class="judge-group">';
@@ -1188,6 +1205,10 @@ function attachRowHandlers(row, it){
   var ta = row.querySelector('[data-note]');
   if(ta){
     ta.onchange = (function(id){ return function(){ setNote(id, this.value); }; })(ta.getAttribute('data-note'));
+  }
+  var ph = row.querySelector('[data-photo]');
+  if(ph){
+    ph.onclick = (function(pid){ return function(){ openPhotoModal(pid); }; })(ph.getAttribute('data-photo'));
   }
 }
 function sc(label, value, color){
@@ -1298,8 +1319,13 @@ function renderItems(){
   h += '<div style="font-size:13px;color:var(--c-text2)">登録済み点検項目 ('+items.length+'件)</div>';
   h += '<button class="btn sm" id="btn-init" '+dis+'>📥 初期項目を投入</button></div>';
   items.forEach(function(it){
-    h += '<div class="item-mgr">';
+    h += '<div class="item-mgr item-mgr-photo">';
     h += '<div style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
+    if(it.photoId){
+      h += '<img class="item-thumb" src="'+photoUrl(it.photoId,true)+'" data-photo="'+it.photoId+'" alt="見本写真" loading="lazy">';
+    } else {
+      h += '<div class="item-thumb item-thumb-empty">写真なし</div>';
+    }
     h += '<div style="font-size:13px">'+esc(it.place)+'</div>';
     h += '<div style="font-size:12px;color:var(--c-text2)">'+esc(it.side||'—')+'</div>';
     h += '<div style="font-size:14px">'+esc(it.content)+'</div>';
@@ -1312,6 +1338,8 @@ function renderItems(){
 }
 
 function renderEditModal(){
+  var existing = document.getElementById('edit-modal');
+  if(existing) existing.remove();
   var e = STATE.editingItem;
   var div = document.createElement('div');
   div.className = 'modal-bg';
@@ -1322,13 +1350,40 @@ function renderEditModal(){
     '<label>場所</label><input id="edit-place" value="'+esc(e.place)+'">'+
     '<label>側</label><input id="edit-side" value="'+esc(e.side)+'">'+
     '<label>内容</label><textarea id="edit-content" style="min-height:80px;resize:vertical">'+esc(e.content)+'</textarea>'+
-    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<label>見本写真</label>'+
+    '<div class="photo-edit">'+
+      (e.photoId
+        ? '<img class="photo-edit-thumb" id="edit-photo-thumb" src="'+photoUrl(e.photoId,true)+'" data-photo="'+e.photoId+'" alt="見本写真">'
+        : '<div class="photo-edit-thumb photo-edit-empty" id="edit-photo-thumb">写真なし</div>')+
+      '<div class="photo-edit-btns">'+
+        '<button class="btn sm primary" id="btn-photo-pick">'+(e.photoId?'📷 写真を変更':'📷 写真を登録')+'</button>'+
+        (e.photoId?'<button class="btn sm danger" id="btn-photo-del">🗑 写真を削除</button>':'')+
+        '<input type="file" id="edit-photo-file" accept="image/*" style="display:none">'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">'+
     '<button class="btn" id="btn-edit-cancel">キャンセル</button>'+
     '<button class="btn primary" id="btn-edit-save">💾 保存</button></div></div>';
   document.body.appendChild(div);
   div.addEventListener('click', function(ev){ if(ev.target===div){ STATE.editingItem=null; div.remove(); } });
   el('btn-edit-cancel').onclick = function(){ STATE.editingItem=null; div.remove(); };
   el('btn-edit-save').onclick = function(){ saveEditItem(); div.remove(); };
+  // 見本写真: 登録・変更
+  var pickBtn = el('btn-photo-pick');
+  var fileInp = el('edit-photo-file');
+  if(pickBtn && fileInp){
+    pickBtn.onclick = function(){ fileInp.click(); };
+    fileInp.onchange = function(){
+      var f = this.files && this.files[0];
+      if(f){ uploadPhoto(e.id, f); }
+    };
+  }
+  // 見本写真: 削除
+  var delBtn = el('btn-photo-del');
+  if(delBtn){ delBtn.onclick = function(){ removePhoto(e.id); }; }
+  // サムネタップで拡大
+  var thumb = el('edit-photo-thumb');
+  if(thumb && e.photoId){ thumb.onclick = function(){ openPhotoModal(e.photoId); }; }
 }
 
 function renderMonthly(){
@@ -1490,6 +1545,12 @@ function attachHandlers(){
     nts[i].onchange = (function(id){ return function(){ setNote(id, this.value); }; })(nts[i].getAttribute('data-note'));
   }
   if(el('btn-clearday')) el('btn-clearday').onclick = clearDay;
+
+  // 見本写真サムネイル: タップで拡大(点検画面・項目管理リスト共通)
+  var phs = document.querySelectorAll('[data-photo]');
+  for(var i=0;i<phs.length;i++){
+    phs[i].onclick = (function(pid){ return function(){ openPhotoModal(pid); }; })(phs[i].getAttribute('data-photo'));
+  }
 
   // 履歴タブ
   var ods = document.querySelectorAll('[data-opendate]');
