@@ -49,6 +49,8 @@
 
   .top-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; padding: 14px; background: var(--c-bg2); border-radius: var(--r-lg); margin-bottom: 14px; }
   .top-bar input { height: 44px; font-size: 15px; padding: 0 12px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); box-sizing: border-box; width: 160px; }
+  .top-bar select { height: 44px; font-size: 15px; padding: 0 12px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); box-sizing: border-box; width: 160px; cursor: pointer; }
+  .top-bar select:disabled { background: var(--c-bg2); cursor: default; }
   .top-bar input:disabled { background: var(--c-bg2); }
   .top-bar label { font-size: 13px; color: var(--c-text2); margin-bottom: 4px; display: block; }
   .field { display: flex; flex-direction: column; }
@@ -57,7 +59,7 @@
   .tab { padding: 12px 22px; font-size: 15px; font-weight: 500; cursor: pointer; background: transparent; color: var(--c-text2); border: 1px solid var(--c-bd); border-radius: var(--r-md); min-height: 48px; font-family: var(--font); }
   .tab.active { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
 
-  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
   .sc { background: var(--c-bg2); padding: 12px 14px; border-radius: var(--r-md); }
   .sc-label { font-size: 12px; color: var(--c-text2); }
   .sc-value { font-size: 26px; font-weight: 500; margin-top: 2px; line-height: 1.1; }
@@ -151,6 +153,7 @@
     .top-bar { padding: 12px; gap: 12px; }
     .top-bar .field { width: 100%; }
     .top-bar input { width: 100%; height: 50px; font-size: 17px; }
+    .top-bar select { width: 100%; height: 50px; font-size: 17px; }
     .top-bar label { font-size: 14px; }
 
     /* サマリー: 4列→2列に */
@@ -462,11 +465,13 @@ var STATE = {
   allItems: { nid: NID_ITEMS, shikomi: SHIKOMI_ITEMS },
   allRecords: { nid: {}, shikomi: {} },
   allIssues: { nid: [], shikomi: [] },
+  allDoneIssues: { nid: [], shikomi: [] },
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
   printMonth: currentMonthStr(),
   editingItem: null,
+  staffNames: [],
   loading: true
 };
 var saveTimer = null;
@@ -475,6 +480,7 @@ var pendingData = null;
 function getItems(){ return STATE.allItems[STATE.machineId] || []; }
 function getRecords(){ return STATE.allRecords[STATE.machineId] || {}; }
 function getIssues(){ return STATE.allIssues[STATE.machineId] || []; }
+function getDoneIssues(){ return STATE.allDoneIssues[STATE.machineId] || []; }
 function getCurrent(){ 
   var r = getRecords()[STATE.date];
   return r || { results:{}, notes:{}, inspector:'', checker:'' };
@@ -497,9 +503,11 @@ function refresh(){
       }
       STATE.allRecords[mid] = (data.records && data.records[mid]) || {};
       STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
+      STATE.allDoneIssues[mid] = (data.doneIssues && data.doneIssues[mid]) || [];
     }
     // NG項目から不具合を自動生成(まだ不具合リストにないものを追加)
     syncIssuesFromRecords();
+    STATE.staffNames = (data.staffNames && data.staffNames.length) ? data.staffNames : STATE.staffNames;
     STATE.sync = { state:'online', message:'最新です', at:timeStr() };
     STATE.loading = false;
     render();
@@ -610,6 +618,13 @@ function updateIssue(issueId, field, value, noRender){
     if(!target.doneDate) target.doneDate = todayStr();
     // ローカルリストから除去(画面から消える)
     STATE.allIssues[STATE.machineId] = issues.filter(function(x){ return x.id !== issueId; });
+    // 完了済みリストへ追加(印刷・出力に即時反映。重複は避ける)
+    var dlist = STATE.allDoneIssues[STATE.machineId] || [];
+    if(!dlist.some(function(x){ return x.id===issueId; })){
+      var doneCopy = {}; for(var q in target){ if(q!=='_unsaved') doneCopy[q]=target[q]; }
+      dlist = dlist.concat([doneCopy]);
+    }
+    STATE.allDoneIssues[STATE.machineId] = dlist;
     // サーバ側で完了済みシートへ移動(不具合シートから削除)
     if(isGasConfigured){
       var toSave = {}; for(var p in target){ if(p!=='_unsaved') toSave[p]=target[p]; }
@@ -873,9 +888,7 @@ function updateSummary(){
   if(sumEl){
     sumEl.innerHTML =
       sc('点検済み', stats.done+' / '+stats.total, '') +
-      sc('○ OK', stats.ok, 'var(--c-success)') +
-      sc('× NG', stats.ng, 'var(--c-danger)') +
-      sc('未点検', stats.total-stats.done, 'var(--c-text3)');
+      sc('× NG', stats.ng, 'var(--c-danger)');
   }
   var pf = el('progress-fill');
   if(pf) pf.style.width = (stats.total?(stats.done/stats.total*100):0)+'%';
@@ -912,6 +925,41 @@ function updateMeta(field, value){
   cur[field] = value;
   storeRecord(STATE.date, cur);
   scheduleSave(STATE.date, cur);
+}
+
+// ============================================================
+// 点検者・確認者の名簿(NID・仕込み共通。スプレッドシートに保存)
+// ============================================================
+function addStaff(){
+  if(!STATE.editMode) return;
+  var inp = el('new-staff');
+  if(!inp) return;
+  var name = (inp.value||'').trim();
+  if(!name){ return; }
+  var names = (STATE.staffNames || []).slice();
+  if(names.indexOf(name) >= 0){ alert('「'+name+'」は既に登録されています。'); return; }
+  names.push(name);
+  STATE.staffNames = names;
+  inp.value = '';
+  saveStaffNames(names);
+  render();
+}
+function deleteStaff(name){
+  if(!STATE.editMode) return;
+  if(!confirm('「'+name+'」を名簿から削除しますか?\n(過去の点検記録に既に入力された名前はそのまま残ります)')) return;
+  var names = (STATE.staffNames || []).filter(function(n){ return n !== name; });
+  STATE.staffNames = names;
+  saveStaffNames(names);
+  render();
+}
+function saveStaffNames(names){
+  if(!isGasConfigured){ return; }
+  STATE.sync = { state:'syncing', message:'名簿を保存中...', at:null }; updateSyncBar();
+  postGAS('saveStaff', { names: names }, function(){
+    STATE.sync = { state:'editing', message:'名簿を保存しました', at:timeStr() }; updateSyncBar();
+  }, function(e){
+    STATE.sync = { state:'error', message:'名簿の保存に失敗: '+e.message, at:null }; updateSyncBar();
+  });
 }
 function clearDay(){
   if(!STATE.editMode) return;
@@ -1109,6 +1157,36 @@ function exportExcel(){
   var ws = XLSX.utils.aoa_to_sheet(aoa);
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, mm+'月');
+
+  // 不具合一覧シート(未完了・完了の両方)
+  var openIssues = getIssues().filter(function(is){ return is.status!=='完了'; })
+    .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  var doneIssues = getDoneIssues().slice()
+    .sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
+  var iaoa = [];
+  iaoa.push(['■ 未解決の不具合一覧 ('+openIssues.length+'件) ※前月からの繰り越し含む']);
+  iaoa.push(['発生日','経過日数','場所','側','点検内容','不具合内容','対応コメント','担当者','対応状況']);
+  if(openIssues.length===0){
+    iaoa.push(['未解決の不具合はありません。']);
+  } else {
+    openIssues.forEach(function(is){
+      iaoa.push([is.date||'', daysSince(is.date)+'日', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'', is.status||'']);
+    });
+  }
+  iaoa.push([]);
+  iaoa.push(['■ 完了した不具合一覧 ('+doneIssues.length+'件)']);
+  iaoa.push(['発生日','完了日','場所','側','点検内容','不具合内容','対応コメント','担当者']);
+  if(doneIssues.length===0){
+    iaoa.push(['完了した不具合はありません。']);
+  } else {
+    doneIssues.forEach(function(is){
+      iaoa.push([is.date||'', is.doneDate||'', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'']);
+    });
+  }
+  var iws = XLSX.utils.aoa_to_sheet(iaoa);
+  iws['!cols'] = [{wch:12},{wch:10},{wch:16},{wch:12},{wch:32},{wch:32},{wch:28},{wch:12},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, iws, '不具合一覧');
+
   XLSX.writeFile(wb, m.name+'_'+STATE.printMonth+'.xlsx');
 }
 
@@ -1209,6 +1287,24 @@ function renderTabs(){
   return h;
 }
 
+function staffSelectHTML(id, current, dis){
+  var names = STATE.staffNames || [];
+  var h = '<select id="'+id+'" '+dis+'>';
+  h += '<option value="">(未選択)</option>';
+  var found = false;
+  names.forEach(function(n){
+    var sel = (n===current) ? ' selected' : '';
+    if(n===current) found = true;
+    h += '<option value="'+esc(n)+'"'+sel+'>'+esc(n)+'</option>';
+  });
+  // 保存済みだがリストに無い名前は、選択肢として残す(消えないように)
+  if(current && !found){
+    h += '<option value="'+esc(current)+'" selected>'+esc(current)+' (リスト外)</option>';
+  }
+  h += '</select>';
+  return h;
+}
+
 function renderCheck(){
   var cur = getCurrent();
   var stats = getStats();
@@ -1217,15 +1313,13 @@ function renderCheck(){
   var h = '';
   h += '<div class="top-bar no-print">';
   h += '<div class="field"><label>日付</label><input type="date" id="inp-date" value="'+STATE.date+'"></div>';
-  h += '<div class="field"><label>点検者</label><input type="text" id="inp-inspector" value="'+esc(cur.inspector)+'" placeholder="氏名" '+dis+'></div>';
-  h += '<div class="field"><label>確認者</label><input type="text" id="inp-checker" value="'+esc(cur.checker)+'" placeholder="氏名" '+dis+'></div>';
+  h += '<div class="field"><label>点検者</label>'+staffSelectHTML('inp-inspector', cur.inspector, dis)+'</div>';
+  h += '<div class="field"><label>確認者</label>'+staffSelectHTML('inp-checker', cur.checker, dis)+'</div>';
   h += '</div>';
 
   h += '<div class="summary no-print" id="summary-box">';
   h += sc('点検済み', stats.done+' / '+stats.total, '');
-  h += sc('○ OK', stats.ok, 'var(--c-success)');
   h += sc('× NG', stats.ng, 'var(--c-danger)');
-  h += sc('未点検', stats.total-stats.done, 'var(--c-text3)');
   h += '</div>';
 
   h += '<div class="progress-bar no-print"><div class="progress-fill" id="progress-fill" style="width:'+(stats.total?(stats.done/stats.total*100):0)+'%"></div></div>';
@@ -1381,7 +1475,32 @@ function renderItems(){
   var items = getItems();
   var ed = STATE.editMode;
   var dis = ed?'':'disabled';
-  var h = '<div style="padding:14px;background:var(--c-info-bg);border-radius:var(--r-lg);margin-bottom:14px">';
+  var h = '';
+
+  // 点検者・確認者の名簿管理(NID・仕込み共通)
+  h += '<div style="padding:14px;background:var(--c-bg2);border:1px solid var(--c-bd);border-radius:var(--r-lg);margin-bottom:14px">';
+  h += '<div style="font-size:14px;font-weight:500;margin-bottom:10px">👤 点検者・確認者の名簿 '+(ed?'':'<span style="color:var(--c-warn);font-weight:400">(編集モードをONにしてください)</span>')+'</div>';
+  var names = STATE.staffNames || [];
+  if(names.length===0){
+    h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:10px">まだ名前が登録されていません。下の欄から追加してください。</div>';
+  } else {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
+    names.forEach(function(n){
+      h += '<span style="display:inline-flex;align-items:center;gap:6px;background:var(--c-bg);border:1px solid var(--c-bd);border-radius:999px;padding:6px 6px 6px 14px;font-size:14px">';
+      h += esc(n);
+      h += '<button class="btn sm danger" data-delstaff="'+esc(n)+'" '+dis+' style="width:28px;height:28px;padding:0;border-radius:50%">×</button>';
+      h += '</span>';
+    });
+    h += '</div>';
+  }
+  h += '<div style="display:flex;gap:8px">';
+  h += '<input id="new-staff" placeholder="氏名を入力" '+dis+' style="flex:1;height:44px;padding:0 12px;border:1px solid var(--c-bd2);border-radius:var(--r-md);background:var(--c-bg);color:var(--c-text);font-family:var(--font);font-size:15px;box-sizing:border-box">';
+  h += '<button class="btn sm primary" id="btn-addstaff" '+dis+'>+ 追加</button>';
+  h += '</div>';
+  h += '<div style="font-size:12px;color:var(--c-text2);margin-top:6px">※ここで登録した名前が、点検者・確認者の選択肢になります(NID・仕込み共通)。</div>';
+  h += '</div>';
+
+  h += '<div style="padding:14px;background:var(--c-info-bg);border-radius:var(--r-lg);margin-bottom:14px">';
   h += '<div style="font-size:14px;font-weight:500;color:var(--c-info);margin-bottom:10px">➕ '+esc(m.name)+'の項目を追加 '+(ed?'':'<span style="color:var(--c-warn);font-weight:400">(編集モードをONにしてください)</span>')+'</div>';
   h += '<div class="item-mgr item-mgr-add-mobile" style="background:var(--c-bg);grid-template-columns:50px 130px 90px 1fr 40px">';
   h += '<input id="new-no" placeholder="No." '+dis+' style="text-align:center" inputmode="numeric">';
@@ -1589,6 +1708,40 @@ function buildPrintArea(){
   }
   h += '</div>';
 
+  // 完了した不具合一覧
+  var doneIssues = getDoneIssues().slice()
+    .sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
+  h += '<div style="margin-top:10px;page-break-inside:auto">';
+  h += '<div style="font-size:11pt;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;margin-bottom:4px">完了した不具合一覧 ('+doneIssues.length+'件)</div>';
+  if(doneIssues.length===0){
+    h += '<div style="font-size:9pt">完了した不具合はありません。</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse;font-size:8pt;color:#000">';
+    h += '<thead><tr style="background:#d9ead3">';
+    h += '<th style="border:1px solid #333;padding:2px;width:30pt">発生月</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:36pt">完了日</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:55pt">場所</th>';
+    h += '<th style="border:1px solid #333;padding:2px">点検内容</th>';
+    h += '<th style="border:1px solid #333;padding:2px">不具合内容</th>';
+    h += '<th style="border:1px solid #333;padding:2px">対応コメント</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:40pt">担当</th>';
+    h += '</tr></thead><tbody>';
+    doneIssues.forEach(function(is){
+      var mlabel = is.date ? (is.date.split('-')[1]+'/'+is.date.split('-')[0].slice(2)) : '';
+      h += '<tr>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.doneDate||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.detail||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.comment||'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.assignee||'')+'</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+
   h += '</div>';
   el('print-area').innerHTML = h;
 }
@@ -1652,6 +1805,12 @@ function attachHandlers(){
   for(var i=0;i<eis.length;i++){ eis[i].onclick = (function(id){ return function(){ openEditItem(id); }; })(eis[i].getAttribute('data-edititem')); }
   var dis = document.querySelectorAll('[data-delitem]');
   for(var i=0;i<dis.length;i++){ dis[i].onclick = (function(id){ return function(){ deleteItem(id); }; })(dis[i].getAttribute('data-delitem')); }
+
+  // 名簿(点検者・確認者)
+  if(el('btn-addstaff')) el('btn-addstaff').onclick = addStaff;
+  if(el('new-staff')) el('new-staff').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addStaff(); };
+  var dss = document.querySelectorAll('[data-delstaff]');
+  for(var i=0;i<dss.length;i++){ dss[i].onclick = (function(n){ return function(){ deleteStaff(n); }; })(dss[i].getAttribute('data-delstaff')); }
 
   // 月次タブ
   if(el('inp-month')) el('inp-month').onchange = function(){ STATE.printMonth=this.value; render(); };
