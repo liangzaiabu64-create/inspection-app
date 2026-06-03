@@ -1305,6 +1305,24 @@ function staffSelectHTML(id, current, dis){
   return h;
 }
 
+function assigneeSelectHTML(issueId, current){
+  var names = STATE.staffNames || [];
+  var style = 'height:34px;width:120px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font);background:var(--c-bg);color:var(--c-text)';
+  var h = '<select data-issue-assignee="'+issueId+'" style="'+style+'">';
+  h += '<option value="">(未選択)</option>';
+  var found = false;
+  names.forEach(function(n){
+    var sel = (n===current) ? ' selected' : '';
+    if(n===current) found = true;
+    h += '<option value="'+esc(n)+'"'+sel+'>'+esc(n)+'</option>';
+  });
+  if(current && !found){
+    h += '<option value="'+esc(current)+'" selected>'+esc(current)+' (リスト外)</option>';
+  }
+  h += '</select>';
+  return h;
+}
+
 function renderCheck(){
   var cur = getCurrent();
   var stats = getStats();
@@ -1439,7 +1457,7 @@ function issueCard(is){
   h += '</div>';
   // 操作行: 担当者・状況
   h += '<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">';
-  h += '<label style="font-size:12px;color:var(--c-text2)">担当: <input type="text" data-issue-assignee="'+is.id+'" value="'+esc(is.assignee)+'" placeholder="氏名" style="height:34px;width:120px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font)"></label>';
+  h += '<label style="font-size:12px;color:var(--c-text2)">担当: '+assigneeSelectHTML(is.id, is.assignee)+'</label>';
   h += '<label style="font-size:12px;color:var(--c-text2)">状況: <select data-issue-status="'+is.id+'" style="height:34px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font);color:'+sc+';font-weight:500">';
   ['未着手','対応中','完了'].forEach(function(s){
     h += '<option value="'+s+'" '+(is.status===s?'selected':'')+'>'+s+'</option>';
