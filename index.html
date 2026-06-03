@@ -1165,26 +1165,26 @@ function exportExcel(){
     .sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
   var iaoa = [];
   iaoa.push(['■ 未解決の不具合一覧 ('+openIssues.length+'件) ※前月からの繰り越し含む']);
-  iaoa.push(['発生日','経過日数','場所','側','点検内容','不具合内容','対応コメント','担当者','対応状況']);
+  iaoa.push(['発生日','No.','場所','側','点検内容','不具合内容','対応コメント','担当者','対応状況']);
   if(openIssues.length===0){
     iaoa.push(['未解決の不具合はありません。']);
   } else {
     openIssues.forEach(function(is){
-      iaoa.push([is.date||'', daysSince(is.date)+'日', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'', is.status||'']);
+      iaoa.push([is.date||'', (is.no!=null?is.no:''), is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'', is.status||'']);
     });
   }
   iaoa.push([]);
   iaoa.push(['■ 完了した不具合一覧 ('+doneIssues.length+'件)']);
-  iaoa.push(['発生日','完了日','場所','側','点検内容','不具合内容','対応コメント','担当者']);
+  iaoa.push(['発生日','No.','完了日','場所','側','点検内容','不具合内容','対応コメント','担当者']);
   if(doneIssues.length===0){
     iaoa.push(['完了した不具合はありません。']);
   } else {
     doneIssues.forEach(function(is){
-      iaoa.push([is.date||'', is.doneDate||'', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'']);
+      iaoa.push([is.date||'', (is.no!=null?is.no:''), is.doneDate||'', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'']);
     });
   }
   var iws = XLSX.utils.aoa_to_sheet(iaoa);
-  iws['!cols'] = [{wch:12},{wch:10},{wch:16},{wch:12},{wch:32},{wch:32},{wch:28},{wch:12},{wch:10}];
+  iws['!cols'] = [{wch:12},{wch:6},{wch:14},{wch:12},{wch:32},{wch:32},{wch:28},{wch:12},{wch:10}];
   XLSX.utils.book_append_sheet(wb, iws, '不具合一覧');
 
   XLSX.writeFile(wb, m.name+'_'+STATE.printMonth+'.xlsx');
@@ -1700,8 +1700,8 @@ function buildPrintArea(){
   } else {
     h += '<table style="width:100%;border-collapse:collapse;font-size:8pt;color:#000">';
     h += '<thead><tr style="background:#f4cccc">';
-    h += '<th style="border:1px solid #333;padding:2px;width:30pt">発生月</th>';
-    h += '<th style="border:1px solid #333;padding:2px;width:28pt">経過</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:42pt">発生月</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:26pt">No.</th>';
     h += '<th style="border:1px solid #333;padding:2px;width:55pt">場所</th>';
     h += '<th style="border:1px solid #333;padding:2px">点検内容</th>';
     h += '<th style="border:1px solid #333;padding:2px">不具合内容</th>';
@@ -1710,10 +1710,10 @@ function buildPrintArea(){
     h += '<th style="border:1px solid #333;padding:2px;width:36pt">状況</th>';
     h += '</tr></thead><tbody>';
     openIssues.forEach(function(is){
-      var mlabel = is.date ? (is.date.split('-')[1]+'/'+is.date.split('-')[0].slice(2)) : '';
+      var mlabel = is.date ? (is.date.split('-')[0]+'/'+is.date.split('-')[1]) : '';
       h += '<tr>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
-      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+daysSince(is.date)+'日</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(is.no!=null?is.no:'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.detail||'')+'</td>';
@@ -1736,7 +1736,8 @@ function buildPrintArea(){
   } else {
     h += '<table style="width:100%;border-collapse:collapse;font-size:8pt;color:#000">';
     h += '<thead><tr style="background:#d9ead3">';
-    h += '<th style="border:1px solid #333;padding:2px;width:30pt">発生月</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:42pt">発生月</th>';
+    h += '<th style="border:1px solid #333;padding:2px;width:26pt">No.</th>';
     h += '<th style="border:1px solid #333;padding:2px;width:36pt">完了日</th>';
     h += '<th style="border:1px solid #333;padding:2px;width:55pt">場所</th>';
     h += '<th style="border:1px solid #333;padding:2px">点検内容</th>';
@@ -1745,9 +1746,10 @@ function buildPrintArea(){
     h += '<th style="border:1px solid #333;padding:2px;width:40pt">担当</th>';
     h += '</tr></thead><tbody>';
     doneIssues.forEach(function(is){
-      var mlabel = is.date ? (is.date.split('-')[1]+'/'+is.date.split('-')[0].slice(2)) : '';
+      var mlabel = is.date ? (is.date.split('-')[0]+'/'+is.date.split('-')[1]) : '';
       h += '<tr>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(is.no!=null?is.no:'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.doneDate||'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
