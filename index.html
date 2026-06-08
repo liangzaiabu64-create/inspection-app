@@ -505,6 +505,8 @@ function refresh(){
       STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
       STATE.allDoneIssues[mid] = (data.doneIssues && data.doneIssues[mid]) || [];
     }
+    // 同じ項目の未解決重複を1件に統合(過去の重複登録の後始末)
+    mergeOpenIssues();
     // NG項目から不具合を自動生成(まだ不具合リストにないものを追加)
     syncIssuesFromRecords();
     STATE.staffNames = (data.staffNames && data.staffNames.length) ? data.staffNames : STATE.staffNames;
@@ -521,6 +523,56 @@ function refresh(){
 // NG記録から不具合リストを自動生成
 // 各機械・各項目について、最新のNG発生を拾い、まだ不具合リストに無ければ追加候補にする。
 // 「完了」になっていない限り繰り越される(リストに残り続ける)。
+// 同じ項目(itemId)の「未解決」不具合が複数ある場合、1件に統合する。
+// 情報量が多い(対応コメント・担当・不具合内容が入っている)ものを優先して残し、
+// 残りはサーバの不具合シートからも削除する。重複の後始末用。
+function mergeOpenIssues(){
+  var mids = ['nid','shikomi'];
+  for(var mi=0; mi<mids.length; mi++){
+    var mid = mids[mi];
+    var issues = STATE.allIssues[mid] || [];
+    var open = [], closed = [];
+    issues.forEach(function(is){ if(is.status==='完了') closed.push(is); else open.push(is); });
+    // itemId ごとにグループ化
+    var groups = {};
+    open.forEach(function(is){
+      var k = is.itemId || ('__'+is.id);
+      (groups[k] = groups[k] || []).push(is);
+    });
+    var kept = [];
+    var toDelete = [];
+    Object.keys(groups).forEach(function(k){
+      var list = groups[k];
+      if(list.length<=1){ kept.push(list[0]); return; }
+      // スコア: 情報が入っているものを優先、同点なら発生日が新しいもの
+      list.sort(function(a,b){
+        var sa = issueInfoScore(a), sb = issueInfoScore(b);
+        if(sa !== sb) return sb - sa;
+        return (b.date||'').localeCompare(a.date||'');
+      });
+      kept.push(list[0]);
+      for(var i=1;i<list.length;i++){ toDelete.push(list[i]); }
+    });
+    if(toDelete.length>0){
+      STATE.allIssues[mid] = kept.concat(closed);
+      if(isGasConfigured){
+        toDelete.forEach(function(is){
+          enqueueSave({ machineId: mid, issueId: is.id }, 'deleteIssue');
+        });
+      }
+    }
+  }
+}
+// 不具合レコードの情報量スコア(高いほど残す価値が高い)
+function issueInfoScore(is){
+  var s = 0;
+  if(is.detail && String(is.detail).trim()) s += 2;
+  if(is.comment && String(is.comment).trim()) s += 2;
+  if(is.assignee && String(is.assignee).trim()) s += 1;
+  if(is.status && is.status!=='未着手') s += 1;
+  return s;
+}
+
 function syncIssuesFromRecords(){
   var mids = ['nid','shikomi'];
   for(var mi=0; mi<mids.length; mi++){
