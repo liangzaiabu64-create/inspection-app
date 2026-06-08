@@ -466,6 +466,7 @@ var STATE = {
   allRecords: { nid: {}, shikomi: {} },
   allIssues: { nid: [], shikomi: [] },
   allDoneIssues: { nid: [], shikomi: [] },
+  allIgnoredKeys: { nid: [], shikomi: [] },
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
@@ -504,6 +505,7 @@ function refresh(){
       STATE.allRecords[mid] = (data.records && data.records[mid]) || {};
       STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
       STATE.allDoneIssues[mid] = (data.doneIssues && data.doneIssues[mid]) || [];
+      STATE.allIgnoredKeys[mid] = (data.ignoredKeys && data.ignoredKeys[mid]) || [];
     }
     // 同じ項目の未解決重複を1件に統合(過去の重複登録の後始末)
     mergeOpenIssues();
@@ -557,7 +559,7 @@ function mergeOpenIssues(){
       STATE.allIssues[mid] = kept.concat(closed);
       if(isGasConfigured){
         toDelete.forEach(function(is){
-          enqueueSave({ machineId: mid, issueId: is.id }, 'deleteIssue');
+          enqueueSave({ machineId: mid, issueId: is.id, itemId: is.itemId, date: is.date }, 'deleteIssue');
         });
       }
     }
@@ -580,6 +582,7 @@ function syncIssuesFromRecords(){
     var records = STATE.allRecords[mid] || {};
     var issues = STATE.allIssues[mid] || [];
     var doneIssues = STATE.allDoneIssues[mid] || [];
+    var ignoredKeys = STATE.allIgnoredKeys[mid] || [];
     var items = STATE.allItems[mid] || [];
     // 既存不具合を itemId+発生日 で索引(重複登録を防ぐ)
     // ★未完了だけでなく「完了済み」も照合対象に含める。
@@ -587,6 +590,9 @@ function syncIssuesFromRecords(){
     var existKey = {};
     issues.forEach(function(is){ existKey[is.itemId + '|' + is.date] = true; });
     doneIssues.forEach(function(is){ existKey[is.itemId + '|' + is.date] = true; });
+    // ★削除済み台帳に載っている itemId|発生日 も「登録済み」とみなし、再生成しない。
+    //   (同じ項目でも別の日に再発したNGは、台帳に無いので新しい不具合として生成される)
+    ignoredKeys.forEach(function(k){ existKey[k] = true; });
     // 「この項目は未完了の不具合が既にある」かどうかの索引(繰り越し中の判定用)。
     //   ループ内で新規追加したぶんもここに足し、同一項目の多重生成を防ぐ。
     var openByItem = {};
@@ -699,6 +705,29 @@ function updateIssue(issueId, field, value, noRender){
   scheduleIssueSave(target);
   // 状況変更など、見た目が大きく変わるものだけ再描画。テキスト入力は再描画しない。
   if(!noRender) render();
+}
+
+// 不具合をリストから削除(完了済みには移さない)。
+// 削除した「項目+発生日」は台帳に記録され、その日のNGからは二度と自動生成されない。
+// 別の日に同じ項目が再発した場合は、新しい不具合として通常どおり表示される。
+function deleteIssueFromList(issueId){
+  var issues = getIssues();
+  var target = null;
+  for(var i=0;i<issues.length;i++){ if(issues[i].id===issueId){ target=issues[i]; break; } }
+  if(!target) return;
+  if(!confirm('この不具合をリストから削除しますか?\n(完了済みには残りません。削除したこの発生日のぶんは今後復活しません。\n別の日に同じ箇所が再びNGになれば、新しい不具合として表示されます)')) return;
+  // ローカルから除去
+  STATE.allIssues[STATE.machineId] = issues.filter(function(x){ return x.id !== issueId; });
+  // 台帳キーをローカルにも即時反映(この場で再生成されないように)
+  var keys = STATE.allIgnoredKeys[STATE.machineId] || [];
+  var k = target.itemId + '|' + target.date;
+  if(keys.indexOf(k) < 0){ keys = keys.concat([k]); }
+  STATE.allIgnoredKeys[STATE.machineId] = keys;
+  // サーバ側でも削除+台帳記録
+  if(isGasConfigured){
+    enqueueSave({ machineId: STATE.machineId, issueId: issueId, itemId: target.itemId, date: target.date }, 'deleteIssue');
+  }
+  render();
 }
 
 // 経過日数を計算
@@ -1523,6 +1552,9 @@ function issueCard(is){
     h += '<option value="'+s+'" '+(is.status===s?'selected':'')+'>'+s+'</option>';
   });
   h += '</select></label>';
+  if(!isDone){
+    h += '<button class="btn sm danger" data-issue-delete="'+is.id+'" style="margin-left:auto">🗑 削除</button>';
+  }
   h += '</div>';
   h += '</div>';
   return h;
@@ -1875,6 +1907,8 @@ function attachHandlers(){
   for(var i=0;i<ias.length;i++){ ias[i].onchange = (function(id){ return function(){ updateIssue(id,'assignee',this.value,true); }; })(ias[i].getAttribute('data-issue-assignee')); }
   var iss = document.querySelectorAll('[data-issue-status]');
   for(var i=0;i<iss.length;i++){ iss[i].onchange = (function(id){ return function(){ updateIssue(id,'status',this.value); }; })(iss[i].getAttribute('data-issue-status')); }
+  var idl = document.querySelectorAll('[data-issue-delete]');
+  for(var i=0;i<idl.length;i++){ idl[i].onclick = (function(id){ return function(){ deleteIssueFromList(id); }; })(idl[i].getAttribute('data-issue-delete')); }
 
   // 項目タブ
   if(el('btn-additem')) el('btn-additem').onclick = addItem;
