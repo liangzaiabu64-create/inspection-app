@@ -527,10 +527,18 @@ function syncIssuesFromRecords(){
     var mid = mids[mi];
     var records = STATE.allRecords[mid] || {};
     var issues = STATE.allIssues[mid] || [];
+    var doneIssues = STATE.allDoneIssues[mid] || [];
     var items = STATE.allItems[mid] || [];
     // 既存不具合を itemId+発生日 で索引(重複登録を防ぐ)
+    // ★未完了だけでなく「完了済み」も照合対象に含める。
+    //   これをしないと、完了にして消した不具合が、元のNG記録から再び自動生成されてしまう。
     var existKey = {};
     issues.forEach(function(is){ existKey[is.itemId + '|' + is.date] = true; });
+    doneIssues.forEach(function(is){ existKey[is.itemId + '|' + is.date] = true; });
+    // 「この項目は未完了の不具合が既にある」かどうかの索引(繰り越し中の判定用)。
+    //   ループ内で新規追加したぶんもここに足し、同一項目の多重生成を防ぐ。
+    var openByItem = {};
+    issues.forEach(function(is){ if(is.status!=='完了') openByItem[is.itemId] = true; });
     // 各日付の記録を走査し、NGを見つける
     var newIssues = [];
     for(var date in records){
@@ -539,10 +547,9 @@ function syncIssuesFromRecords(){
       for(var itemId in rec.results){
         if(rec.results[itemId] !== 'ng') continue;
         var key = itemId + '|' + date;
-        if(existKey[key]) continue; // 既に登録済み
+        if(existKey[key]) continue; // 既に登録済み(未完了・完了済みのどちらも)
         // 同じ項目で「未完了」の不具合が既にあれば、新規追加しない(繰り越し中とみなす)
-        var hasOpen = issues.some(function(is){ return is.itemId===itemId && is.status!=='完了'; });
-        if(hasOpen) continue;
+        if(openByItem[itemId]) continue;
         var it = null;
         for(var k=0;k<items.length;k++){ if(items[k].id===itemId){ it=items[k]; break; } }
         var note = (rec.notes && rec.notes[itemId]) || '';
@@ -561,6 +568,7 @@ function syncIssuesFromRecords(){
           _unsaved: true  // まだサーバ未保存
         });
         existKey[key] = true;
+        openByItem[itemId] = true; // 同一項目の他日NGがこの後に新規生成されるのを防ぐ
       }
     }
     if(newIssues.length>0){
