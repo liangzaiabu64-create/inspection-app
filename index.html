@@ -89,6 +89,8 @@
   .judge-btn:disabled { cursor: not-allowed; opacity: 0.6; }
   .judge-btn.ok-on { background: var(--c-success-bg); color: var(--c-success); border-color: var(--c-success-bd); border-width: 2px; }
   .judge-btn.ng-on { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-bd); border-width: 2px; }
+  .check-row.is-watch { border-color: var(--c-warn); background: var(--c-warn-bg); }
+  .judge-btn.watch-on { background: var(--c-warn-bg); color: var(--c-warn); border-color: var(--c-warn); border-width: 2px; }
 
   .ng-note { grid-column: 1 / -1; margin-top: 8px; padding: 10px; background: var(--c-bg); border: 1px solid var(--c-danger-bd); border-radius: var(--r-md); }
   .ng-note textarea { width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid var(--c-bd); border-radius: var(--r-md); font-size: 14px; font-family: var(--font); background: var(--c-bg); color: var(--c-text); box-sizing: border-box; resize: vertical; }
@@ -474,6 +476,9 @@ var STATE = {
   allIssues: { nid: [], shikomi: [] },
   allDoneIssues: { nid: [], shikomi: [] },
   allIgnoredKeys: { nid: [], shikomi: [] },
+  allWatch: { nid: [], shikomi: [] },
+  allWatchDone: { nid: [], shikomi: [] },
+  allWatchIgnoredKeys: { nid: [], shikomi: [] },
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
@@ -514,11 +519,16 @@ function refresh(){
       STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
       STATE.allDoneIssues[mid] = (data.doneIssues && data.doneIssues[mid]) || [];
       STATE.allIgnoredKeys[mid] = (data.ignoredKeys && data.ignoredKeys[mid]) || [];
+      STATE.allWatch[mid] = (data.watch && data.watch[mid]) || [];
+      STATE.allWatchDone[mid] = (data.watchDone && data.watchDone[mid]) || [];
+      STATE.allWatchIgnoredKeys[mid] = (data.watchIgnoredKeys && data.watchIgnoredKeys[mid]) || [];
     }
     // 同じ項目の未解決重複を1件に統合(過去の重複登録の後始末)
     mergeOpenIssues();
     // NG項目から不具合を自動生成(まだ不具合リストにないものを追加)
     syncIssuesFromRecords();
+    mergeOpenWatch();
+    syncWatchFromRecords();
     STATE.staffNames = (data.staffNames && data.staffNames.length) ? data.staffNames : STATE.staffNames;
     STATE.sync = { state:'online', message:'最新です', at:timeStr() };
     STATE.loading = false;
@@ -997,7 +1007,7 @@ function updateCheckRow(itemId){
   if(!it) return;
   var v = cur.results[itemId];
   var note = cur.notes[itemId]||'';
-  row.className = 'check-row ' + (v==='ok'?'is-ok':v==='ng'?'is-ng':'') + (it.photoId?' has-photo':'') + ' ' + (STATE.editMode?'':'readonly');
+  row.className = 'check-row ' + (v==='ok'?'is-ok':v==='ng'?'is-ng':v==='watch'?'is-watch':'') + (it.photoId?' has-photo':'') + ' ' + (STATE.editMode?'':'readonly');
   row.innerHTML = checkRowInner(it, v, note);
   attachRowHandlers(row, it);
 }
@@ -1009,6 +1019,7 @@ function updateSummary(){
   if(sumEl){
     sumEl.innerHTML =
       sc('点検済み', stats.done+' / '+stats.total, '') +
+      sc('△ 経過観察', stats.watch, 'var(--c-warn)') +
       sc('× NG', stats.ng, 'var(--c-danger)');
   }
   var pf = el('progress-fill');
@@ -1022,6 +1033,7 @@ function setNote(itemId, text){
   scheduleSave(STATE.date, cur);
   // この項目が「未完了の不具合」として登録されていれば、不具合内容も同期
   syncNoteToIssue(itemId, text);
+  syncNoteToWatch(itemId, text);
 }
 
 // 点検の備考を、対応する未完了不具合の「不具合内容」に同期
@@ -1241,7 +1253,7 @@ function confirmLeaveCheck(){
   return true;
 }
 function switchMachine(mid){ if(!confirmLeaveCheck()) return; flushSave(); STATE.machineId=mid; STATE.editingItem=null; STATE.checkFilter='all'; render(); }
-function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); render(); }
+function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); if(t==='watch') syncWatchFromRecords(); render(); }
 function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 
 // ============================================================
@@ -1278,7 +1290,7 @@ function exportExcel(){
     var notes = [];
     cols.forEach(function(c){
       var r = pickColResult(c, records, it.id);
-      row.push(r.v==='ok'?'○':r.v==='ng'?'×':'');
+      row.push(r.v==='ok'?'○':r.v==='ng'?'×':r.v==='watch'?'△':'');
       if(r.note && r.v==='ng') notes.push((isWeek?c.label:(r.day+'日'))+': '+r.note);
     });
     row.push(notes.join(' / '));
@@ -1324,9 +1336,9 @@ function exportExcel(){
 // 集計
 // ============================================================
 function getStats(){
-  var cur = getCurrent(); var ok=0,ng=0;
-  for(var k in cur.results){ if(cur.results[k]==='ok')ok++; else if(cur.results[k]==='ng')ng++; }
-  return { ok:ok, ng:ng, done:ok+ng, total:getItems().length };
+  var cur = getCurrent(); var ok=0,ng=0,watch=0;
+  for(var k in cur.results){ if(cur.results[k]==='ok')ok++; else if(cur.results[k]==='ng')ng++; else if(cur.results[k]==='watch')watch++; }
+  return { ok:ok, ng:ng, watch:watch, done:ok+ng+watch, total:getItems().length };
 }
 function getGrouped(){
   var g={}, order=[];
@@ -1443,6 +1455,8 @@ function render(){
   else if(STATE.tab==='items') html += renderItems();
   else if(STATE.tab==='monthly') html += renderMonthly();
   else if(STATE.tab==='analysis') html += renderAnalysis();
+  else if(STATE.tab==='watch') html += renderWatch();
+  else if(STATE.tab==='pointhist') html += renderPointHist();
   root.innerHTML = html;
   window.__appRendered = true;
 
@@ -1470,7 +1484,9 @@ function renderTabs(){
   var dl = getDateList().length;
   var openIssues = getIssues().filter(function(is){ return is.status!=='完了'; }).length;
   var issueLabel = '不具合リスト' + (openIssues>0 ? ' ('+openIssues+')' : '');
-  var tabs = [['check','点検実施'],['issues',issueLabel],['history','履歴 ('+dl+')'],['analysis','分析'],['items','項目管理'],['monthly','月次出力']];
+  var openWatch = getWatch().filter(function(w){ return w.status!=='完了'; }).length;
+  var watchLabel = '経過観察' + (openWatch>0 ? ' ('+openWatch+')' : '');
+  var tabs = [['check','点検実施'],['issues',issueLabel],['watch',watchLabel],['history','履歴 ('+dl+')'],['pointhist','箇所履歴'],['analysis','分析'],['items','項目管理'],['monthly','月次出力']];
   var h = '<div class="tabs no-print">';
   tabs.forEach(function(t){
     h += '<button class="tab '+(STATE.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
@@ -1529,6 +1545,7 @@ function renderCheck(){
 
   h += '<div class="summary no-print" id="summary-box">';
   h += sc('点検済み', stats.done+' / '+stats.total, '');
+  h += sc('△ 経過観察', stats.watch, 'var(--c-warn)');
   h += sc('× NG', stats.ng, 'var(--c-danger)');
   h += '</div>';
 
@@ -1568,7 +1585,7 @@ function renderCheck(){
       shownTotal++;
       var v = cur.results[it.id];
       var note = cur.notes[it.id]||'';
-      var cls = v==='ok'?'is-ok':v==='ng'?'is-ng':'';
+      var cls = v==='ok'?'is-ok':v==='ng'?'is-ng':v==='watch'?'is-watch':'';
       if(it.photoId) cls += ' has-photo';
       h += '<div class="check-row '+cls+' '+(ed?'':'readonly')+'" data-row="'+it.id+'">';
       h += checkRowInner(it, v, note);
@@ -1598,10 +1615,13 @@ function checkRowInner(it, v, note){
   h += '<div class="row-content">'+esc(it.content)+'</div></div>';
   h += '<div class="judge-group">';
   h += '<button class="judge-btn '+(v==='ok'?'ok-on':'')+'" data-result="ok" data-id="'+it.id+'" '+dis+'>○</button>';
+  h += '<button class="judge-btn '+(v==='watch'?'watch-on':'')+'" data-result="watch" data-id="'+it.id+'" '+dis+'>△</button>';
   h += '<button class="judge-btn '+(v==='ng'?'ng-on':'')+'" data-result="ng" data-id="'+it.id+'" '+dis+'>×</button>';
   h += '</div>';
   if(v==='ng'){
     h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
+  } else if(v==='watch'){
+    h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="経過観察メモ(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
   }
   return h;
 }
@@ -1827,6 +1847,360 @@ function renderEditModal(){
 // ============================================================
 // 分析タブ(NG発生ランキング・長期未対応アラート・点検実施率)
 // ============================================================
+// ============================================================
+// 経過観察(△)システム ― 不具合(×)システムと並列・独立
+// ============================================================
+var watchSaveTimers = {};
+
+function getWatch(){ return STATE.allWatch[STATE.machineId] || []; }
+function getWatchDone(){ return STATE.allWatchDone[STATE.machineId] || []; }
+
+// △記録から経過観察を自動生成(削除台帳を尊重し、再生成しない)
+function syncWatchFromRecords(){
+  var mids = ['nid','shikomi'];
+  for(var mi=0; mi<mids.length; mi++){
+    var mid = mids[mi];
+    var records = STATE.allRecords[mid] || {};
+    var watch = STATE.allWatch[mid] || [];
+    var watchDone = STATE.allWatchDone[mid] || [];
+    var ignoredKeys = STATE.allWatchIgnoredKeys[mid] || [];
+    var items = STATE.allItems[mid] || [];
+    var existKey = {};
+    watch.forEach(function(w){ existKey[w.itemId + '|' + w.date] = true; });
+    watchDone.forEach(function(w){ existKey[w.itemId + '|' + w.date] = true; });
+    ignoredKeys.forEach(function(k){ existKey[k] = true; });
+    var openByItem = {};
+    watch.forEach(function(w){ if(w.status!=='完了') openByItem[w.itemId] = true; });
+    var newWatch = [];
+    for(var date in records){
+      var rec = records[date];
+      if(!rec || !rec.results) continue;
+      for(var itemId in rec.results){
+        if(rec.results[itemId] !== 'watch') continue;
+        var key = itemId + '|' + date;
+        if(existKey[key]) continue;
+        if(openByItem[itemId]) continue;
+        var it = null;
+        for(var k=0;k<items.length;k++){ if(items[k].id===itemId){ it=items[k]; break; } }
+        var note = (rec.notes && rec.notes[itemId]) || '';
+        newWatch.push({
+          id: 'wat_' + mid + '_' + itemId + '_' + date.replace(/-/g,''),
+          date: date, itemId: itemId,
+          no: it ? it.no : '', place: it ? it.place : '', side: it ? it.side : '', content: it ? it.content : '',
+          detail: note, comment: '', assignee: '', status: '観察中', doneDate: '', _unsaved: true
+        });
+        existKey[key] = true;
+        openByItem[itemId] = true;
+      }
+    }
+    if(newWatch.length>0){
+      STATE.allWatch[mid] = watch.concat(newWatch);
+      if(isGasConfigured){
+        newWatch.forEach(function(w){
+          var toSave = {}; for(var p in w){ if(p!=='_unsaved') toSave[p]=w[p]; }
+          enqueueSave({ machineId: mid, watch: toSave }, 'saveWatch');
+        });
+      }
+    }
+  }
+}
+
+// 同一項目の未解決重複を1件に統合
+function mergeOpenWatch(){
+  var mids = ['nid','shikomi'];
+  for(var mi=0; mi<mids.length; mi++){
+    var mid = mids[mi];
+    var watch = STATE.allWatch[mid] || [];
+    var open = [], closed = [];
+    watch.forEach(function(w){ if(w.status==='完了') closed.push(w); else open.push(w); });
+    var groups = {};
+    open.forEach(function(w){ var k = w.itemId || ('__'+w.id); (groups[k] = groups[k] || []).push(w); });
+    var kept = [], toDelete = [];
+    Object.keys(groups).forEach(function(k){
+      var list = groups[k];
+      if(list.length<=1){ kept.push(list[0]); return; }
+      list.sort(function(a,b){ var sa=issueInfoScore(a), sb=issueInfoScore(b); if(sa!==sb) return sb-sa; return (b.date||'').localeCompare(a.date||''); });
+      kept.push(list[0]);
+      for(var i=1;i<list.length;i++){ toDelete.push(list[i]); }
+    });
+    if(toDelete.length>0){
+      STATE.allWatch[mid] = kept.concat(closed);
+      if(isGasConfigured){
+        toDelete.forEach(function(w){ enqueueSave({ machineId: mid, watchId: w.id, itemId: w.itemId, date: w.date }, 'deleteWatch'); });
+      }
+    }
+  }
+}
+
+function syncNoteToWatch(itemId, text){
+  var watch = getWatch();
+  var target = null;
+  for(var i=0;i<watch.length;i++){
+    if(watch[i].itemId===itemId && watch[i].status!=='完了'){
+      if(!target || watch[i].date > target.date) target = watch[i];
+    }
+  }
+  if(!target) return;
+  if(target.detail === text) return;
+  target.detail = text;
+  scheduleWatchSave(target);
+}
+
+function scheduleWatchSave(w){
+  if(!isGasConfigured) return;
+  var id = w.id;
+  STATE.sync = { state:'syncing', message:'保存待機中...', at:null }; updateSyncBar();
+  if(watchSaveTimers[id]) clearTimeout(watchSaveTimers[id]);
+  watchSaveTimers[id] = setTimeout(function(){
+    delete watchSaveTimers[id];
+    var toSave = {}; for(var p in w){ if(p!=='_unsaved') toSave[p]=w[p]; }
+    enqueueSave({ machineId: STATE.machineId, watch: toSave }, 'saveWatch');
+  }, 800);
+}
+
+function updateWatch(watchId, field, value, noRender){
+  var watch = getWatch();
+  var target = null;
+  for(var i=0;i<watch.length;i++){ if(watch[i].id===watchId){ target=watch[i]; break; } }
+  if(!target) return;
+  if(field==='status' && value==='完了'){
+    target.status = '完了';
+    if(!target.doneDate) target.doneDate = todayStr();
+    STATE.allWatch[STATE.machineId] = watch.filter(function(x){ return x.id !== watchId; });
+    var dlist = STATE.allWatchDone[STATE.machineId] || [];
+    if(!dlist.some(function(x){ return x.id===watchId; })){
+      var doneCopy = {}; for(var q in target){ if(q!=='_unsaved') doneCopy[q]=target[q]; }
+      dlist = dlist.concat([doneCopy]);
+    }
+    STATE.allWatchDone[STATE.machineId] = dlist;
+    if(isGasConfigured){
+      var toSave = {}; for(var p in target){ if(p!=='_unsaved') toSave[p]=target[p]; }
+      enqueueSave({ machineId: STATE.machineId, watch: toSave }, 'completeWatch');
+    }
+    render();
+    return;
+  }
+  target[field] = value;
+  scheduleWatchSave(target);
+  if(!noRender) render();
+}
+
+function deleteWatchFromList(watchId){
+  var watch = getWatch();
+  var target = null;
+  for(var i=0;i<watch.length;i++){ if(watch[i].id===watchId){ target=watch[i]; break; } }
+  if(!target) return;
+  if(!confirm('この経過観察をリストから削除しますか?\n(完了済みには残りません。削除したこの観察開始日のぶんは今後復活しません。\n別の日に同じ箇所が再び△になれば、新しい経過観察として表示されます)')) return;
+  STATE.allWatch[STATE.machineId] = watch.filter(function(x){ return x.id !== watchId; });
+  var keys = STATE.allWatchIgnoredKeys[STATE.machineId] || [];
+  var k = target.itemId + '|' + target.date;
+  if(keys.indexOf(k) < 0){ keys = keys.concat([k]); }
+  STATE.allWatchIgnoredKeys[STATE.machineId] = keys;
+  if(isGasConfigured){
+    enqueueSave({ machineId: STATE.machineId, watchId: watchId, itemId: target.itemId, date: target.date }, 'deleteWatch');
+  }
+  render();
+}
+
+function watchAssigneeSelectHTML(watchId, current){
+  var h = '<select data-watch-assignee="'+watchId+'" style="height:34px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font)">';
+  h += '<option value="">(担当者)</option>';
+  (STATE.staffNames||[]).forEach(function(n){ h += '<option value="'+esc(n)+'" '+(current===n?'selected':'')+'>'+esc(n)+'</option>'; });
+  h += '</select>';
+  return h;
+}
+
+function watchCard(w){
+  var days = daysSince(w.date);
+  var isDone = w.status==='完了';
+  var monthLabel = w.date ? (w.date.split('-')[0]+'年'+w.date.split('-')[1]+'月') : '';
+  var h = '<div style="padding:14px;background:'+(isDone?'var(--c-bg2)':'var(--c-bg)')+';border:1px solid '+(isDone?'var(--c-bd)':'var(--c-warn)')+';border-radius:var(--r-lg);margin-bottom:10px;'+(isDone?'opacity:0.75':'')+'">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">';
+  h += '<div style="flex:1;min-width:200px">';
+  h += '<div><span class="row-place">'+esc(w.place)+'</span>'+(w.side?'<span class="row-side">'+esc(w.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(w.no)+'</span></div>';
+  h += '<div style="font-size:15px;margin-top:4px">'+esc(w.content)+'</div>';
+  h += '</div>';
+  h += '<div style="text-align:right;font-size:12px;color:var(--c-text2)">';
+  h += '観察開始: '+esc(monthLabel)+'<br>';
+  if(!isDone){ h += '<span style="color:var(--c-warn);font-weight:500">経過 '+days+'日</span>'; }
+  else { h += '解除: '+esc(w.doneDate); }
+  h += '</div></div>';
+  h += '<div style="margin-top:10px">';
+  h += '<label style="font-size:12px;color:var(--c-warn);display:block;margin-bottom:2px">経過観察の内容</label>';
+  h += '<textarea data-watch-detail="'+w.id+'" placeholder="気になる点・観察理由" style="width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--c-warn);border-radius:var(--r-md);font-size:14px;font-family:var(--font);background:var(--c-warn-bg);color:var(--c-text);box-sizing:border-box;resize:vertical">'+esc(w.detail)+'</textarea>';
+  h += '</div>';
+  h += '<div style="margin-top:8px">';
+  h += '<label style="font-size:12px;color:var(--c-info);display:block;margin-bottom:2px">対応コメント(経緯・進捗メモ)</label>';
+  h += '<textarea data-watch-comment="'+w.id+'" placeholder="対応の経緯や進捗を記入" style="width:100%;min-height:42px;padding:8px 10px;border:1px solid var(--c-info-bd);border-radius:var(--r-md);font-size:14px;font-family:var(--font);background:var(--c-info-bg);color:var(--c-text);box-sizing:border-box;resize:vertical">'+esc(w.comment||'')+'</textarea>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">';
+  h += '<label style="font-size:12px;color:var(--c-text2)">担当: '+watchAssigneeSelectHTML(w.id, w.assignee)+'</label>';
+  h += '<label style="font-size:12px;color:var(--c-text2)">状況: <select data-watch-status="'+w.id+'" style="height:34px;padding:0 8px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font);font-weight:500">';
+  ['観察中','対応中','完了'].forEach(function(s){ h += '<option value="'+s+'" '+(w.status===s?'selected':'')+'>'+s+'</option>'; });
+  h += '</select></label>';
+  if(!isDone){ h += '<button class="btn sm danger" data-watch-delete="'+w.id+'" style="margin-left:auto">🗑 削除</button>'; }
+  h += '</div></div>';
+  return h;
+}
+
+function renderWatch(){
+  var m = getMachine();
+  var watch = getWatch();
+  var open = watch.filter(function(w){ return w.status!=='完了'; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var h = '<div style="padding:14px;background:var(--c-warn-bg);border:1px solid var(--c-warn);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
+  h += '<b style="color:var(--c-warn)">'+esc(m.name)+' 経過観察リスト</b><br>';
+  h += '点検で△がついた項目が自動で登録されます。「完了」にすると一覧から消え、スプレッドシートの「経過観察完了」シートへ移動します。不具合(×)とは独立して管理されます。';
+  h += '</div>';
+  if(open.length===0){ h += '<div class="empty">経過観察中の項目はありません</div>'; return h; }
+  h += '<div style="font-size:14px;font-weight:500;color:var(--c-warn);margin:8px 0">観察中 ('+open.length+'件)</div>';
+  open.forEach(function(w){ h += watchCard(w); });
+  return h;
+}
+
+// ============================================================
+// 箇所別 不具合履歴ビューア
+// ============================================================
+function renderPointHist(){
+  var m = getMachine();
+  var items = getItems();
+  var ngCount = {}, watchCount = {};
+  getIssues().concat(getDoneIssues()).forEach(function(is){ ngCount[is.itemId] = (ngCount[is.itemId]||0)+1; });
+  getWatch().concat(getWatchDone()).forEach(function(w){ watchCount[w.itemId] = (watchCount[w.itemId]||0)+1; });
+  var h = '<div style="padding:14px;background:var(--c-bg2);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
+  h += '<b>'+esc(m.name)+' 箇所別 不具合履歴</b><br>点検箇所をタップすると、その箇所で過去に発生した不具合(×)・経過観察(△)と対応コメントを時系列で確認できます。';
+  h += '</div>';
+  h += '<div style="margin-bottom:10px"><input type="text" id="point-search" placeholder="🔍 場所・内容で絞り込み" style="width:100%;height:40px;padding:0 12px;border:1px solid var(--c-bd);border-radius:var(--r-md);font-family:var(--font);font-size:14px;box-sizing:border-box"></div>';
+  h += '<div id="point-list">';
+  items.forEach(function(it){
+    var nc = ngCount[it.id]||0, wc = watchCount[it.id]||0;
+    var hasHist = (nc+wc)>0;
+    h += '<div class="point-row" data-point="'+it.id+'" data-search="'+esc((it.place+' '+(it.side||'')+' '+it.content).toLowerCase())+'" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--c-bg);border:1px solid '+(hasHist?'var(--c-bd2)':'var(--c-bd)')+';border-radius:var(--r-lg);margin-bottom:6px;cursor:pointer">';
+    h += '<div class="row-no">'+it.no+'</div>';
+    h += '<div style="flex:1;min-width:0"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div><div style="font-size:13px;color:var(--c-text2)">'+esc(it.content)+'</div></div>';
+    h += '<div style="text-align:right;font-size:12px;white-space:nowrap">';
+    if(nc>0) h += '<span style="color:var(--c-danger);font-weight:600">×'+nc+'</span> ';
+    if(wc>0) h += '<span style="color:var(--c-warn);font-weight:600">△'+wc+'</span>';
+    if(!hasHist) h += '<span style="color:var(--c-text3)">履歴なし</span>';
+    h += ' <span style="color:var(--c-text3)">›</span>';
+    h += '</div></div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function openPointHist(itemId){
+  var items = getItems();
+  var it = null; for(var i=0;i<items.length;i++){ if(items[i].id===itemId){ it=items[i]; break; } }
+  if(!it) return;
+  var events = [];
+  getIssues().concat(getDoneIssues()).forEach(function(is){
+    if(is.itemId!==itemId) return;
+    events.push({ type:'ng', date:is.date, detail:is.detail, comment:is.comment, status:is.status, assignee:is.assignee, doneDate:is.doneDate });
+  });
+  getWatch().concat(getWatchDone()).forEach(function(w){
+    if(w.itemId!==itemId) return;
+    events.push({ type:'watch', date:w.date, detail:w.detail, comment:w.comment, status:w.status, assignee:w.assignee, doneDate:w.doneDate });
+  });
+  events.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+
+  var existing = document.getElementById('point-modal'); if(existing) existing.remove();
+  var div = document.createElement('div');
+  div.className = 'modal-bg'; div.id = 'point-modal';
+  var body = '';
+  body += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">';
+  body += '<div><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(it.no)+'</span></div>';
+  body += '<div style="font-size:14px;margin-top:2px;color:var(--c-text2)">'+esc(it.content)+'</div></div>';
+  body += '<button class="btn sm" id="point-modal-close">✕ 閉じる</button>';
+  body += '</div>';
+  if(events.length===0){
+    body += '<div class="empty" style="padding:30px 10px">この箇所で過去に発生した不具合・経過観察はありません</div>';
+  } else {
+    body += '<div style="font-size:12px;color:var(--c-text2);margin:8px 0">過去の記録 '+events.length+'件(新しい順)</div>';
+    events.forEach(function(ev){
+      var isNg = ev.type==='ng';
+      var badge = isNg ? '<span style="display:inline-block;padding:1px 8px;border-radius:10px;background:var(--c-danger-bg);color:var(--c-danger);font-weight:600;font-size:12px">× 不具合</span>'
+                       : '<span style="display:inline-block;padding:1px 8px;border-radius:10px;background:var(--c-warn-bg);color:var(--c-warn);font-weight:600;font-size:12px">△ 経過観察</span>';
+      var bd = isNg ? 'var(--c-danger-bd)' : 'var(--c-warn)';
+      body += '<div style="border:1px solid '+bd+';border-left-width:4px;border-radius:var(--r-md);padding:10px 12px;margin-bottom:8px;background:var(--c-bg)">';
+      body += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+badge+'<span style="font-size:13px;color:var(--c-text2)">'+esc(ev.date)+'　<b style="color:var(--c-text)">'+esc(ev.status||'')+'</b>'+(ev.doneDate?'(完了 '+esc(ev.doneDate)+')':'')+'</span></div>';
+      if(ev.detail && String(ev.detail).trim()){ body += '<div style="margin-top:6px;font-size:13px"><span style="color:var(--c-text3)">内容: </span>'+esc(ev.detail)+'</div>'; }
+      if(ev.comment && String(ev.comment).trim()){ body += '<div style="margin-top:4px;font-size:13px;background:var(--c-info-bg);border-radius:var(--r-md);padding:6px 8px"><span style="color:var(--c-info)">対応: </span>'+esc(ev.comment)+'</div>'; }
+      if(ev.assignee){ body += '<div style="margin-top:4px;font-size:12px;color:var(--c-text3)">担当: '+esc(ev.assignee)+'</div>'; }
+      body += '</div>';
+    });
+  }
+  div.innerHTML = '<div class="modal" style="max-width:560px;max-height:82vh;overflow:auto">'+body+'</div>';
+  document.body.appendChild(div);
+  div.onclick = function(e){ if(e.target===div) div.remove(); };
+  var cb = document.getElementById('point-modal-close'); if(cb) cb.onclick = function(){ div.remove(); };
+}
+
+// ============================================================
+// 分析ヘルパー(判定の時系列集計)
+// ============================================================
+function _judgeDates(judge){
+  var records = getRecords(); var map = {};
+  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; for(var id in r.results){ if(r.results[id]===judge){ (map[id]=map[id]||[]).push(d); } } }
+  for(var k in map){ map[k].sort(); }
+  return map;
+}
+function _dayDiff(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+function _consolidate(dates, gap){
+  if(!dates||dates.length===0) return [];
+  var s = dates.slice().sort(); var out=[s[0]]; var last=s[0];
+  for(var i=1;i<s.length;i++){ if(_dayDiff(last,s[i])>gap){ out.push(s[i]); } last=s[i]; }
+  return out;
+}
+function computeLeadTimes(){
+  var wm=_judgeDates('watch'), nm=_judgeDates('ng'); var out=[];
+  for(var id in wm){ var nd=nm[id]||[]; wm[id].forEach(function(wd){ var nx=null; for(var i=0;i<nd.length;i++){ if(_dayDiff(wd,nd[i])>0){ nx=nd[i]; break; } } if(nx){ out.push({itemId:id, watchDate:wd, ngDate:nx, days:_dayDiff(wd,nx)}); } }); }
+  out.sort(function(a,b){ return a.days-b.days; });
+  return out;
+}
+function computeTriToNg(){ // 精度: △のうち90日内に×へ転換した割合
+  var wm=_judgeDates('watch'), nm=_judgeDates('ng'); var total=0,hit=0;
+  for(var id in wm){ var nd=nm[id]||[]; var winc=_consolidate(wm[id],1); winc.forEach(function(wd){ total++; var has=nd.some(function(x){ var df=_dayDiff(wd,x); return df>0 && df<=90; }); if(has) hit++; }); }
+  return { total:total, hit:hit, rate: total>=5 ? hit/total : null };
+}
+function computeTriRecall(){ // 再現率: ×のうち事前90日内に△があった割合
+  var wm=_judgeDates('watch'), nm=_judgeDates('ng'); var total=0,hit=0;
+  for(var id in nm){ var inc=_consolidate(nm[id],1); var wd=wm[id]||[]; inc.forEach(function(nd){ total++; var has=wd.some(function(x){ var df=_dayDiff(x,nd); return df>0 && df<=90; }); if(has) hit++; }); }
+  return { total:total, hit:hit, rate: total>=5 ? hit/total : null };
+}
+function computeRecurrence(){
+  var nm=_judgeDates('ng'); var items=getItems(); var out=[]; var today=todayStr();
+  for(var id in nm){
+    var inc=_consolidate(nm[id],1);
+    if(inc.length<3) continue;
+    var t0=inc[0]; var T=_dayDiff(t0,today); if(T<=0) T=_dayDiff(t0,inc[inc.length-1])||1;
+    var n=inc.length;
+    var sumt=0; inc.forEach(function(d){ sumt += _dayDiff(t0,d); });
+    var U=(sumt - n*T/2)/(T*Math.sqrt(n/12));
+    var gaps=[]; for(var i=1;i<inc.length;i++){ gaps.push(_dayDiff(inc[i-1],inc[i])); }
+    var avgGap = gaps.reduce(function(a,b){return a+b;},0)/gaps.length;
+    var it=null; for(var k=0;k<items.length;k++){ if(items[k].id===id){ it=items[k]; break; } }
+    var trend = U>1.96 ? 'up' : U<-1.96 ? 'down' : 'flat';
+    out.push({ itemId:id, it:it, count:n, avgGap:Math.round(avgGap), lastDate:inc[inc.length-1], U:U, trend:trend });
+  }
+  out.sort(function(a,b){ var order={up:0,flat:1,down:2}; if(order[a.trend]!==order[b.trend]) return order[a.trend]-order[b.trend]; return b.count-a.count; });
+  return out;
+}
+function computeMonthlyNG(){
+  var records=getRecords(); var map={};
+  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; var ym=d.substring(0,7); for(var id in r.results){ if(r.results[id]==='ng'){ map[ym]=(map[ym]||0)+1; } } }
+  var months=Object.keys(map).sort();
+  return months.map(function(m){ return { ym:m, count:map[m] }; });
+}
+function computeHeatmap(){
+  var records=getRecords(); var items=getItems();
+  var placeOf={}; items.forEach(function(it){ placeOf[it.id]=it.place||'(未設定)'; });
+  var monthsSet={}, placesSet={}; var cell={};
+  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; var ym=d.substring(0,7); for(var id in r.results){ if(r.results[id]==='ng'){ var pl=placeOf[id]||'(未設定)'; monthsSet[ym]=1; placesSet[pl]=1; var key=pl+'|'+ym; cell[key]=(cell[key]||0)+1; } } }
+  var months=Object.keys(monthsSet).sort(); var places=Object.keys(placesSet).sort();
+  return { months:months, places:places, cell:cell };
+}
+
+
 function renderAnalysis(){
   var m = getMachine();
   var items = getItems();
@@ -1923,6 +2297,101 @@ function renderAnalysis(){
   }
   h += '</div>';
 
+  // ============ 追加分析(△・再発・ヒートマップ) ============
+  // KPIストリップ: △の効き目(精度・再現率)
+  var triP = computeTriToNg(); var triR = computeTriRecall();
+  h += '<div class="analysis-card">';
+  h += '<div class="analysis-title">🎯 △(経過観察)の効き目</div>';
+  h += '<div style="display:flex;gap:12px;flex-wrap:wrap">';
+  h += '<div style="flex:1;min-width:150px;background:var(--c-bg2);border-radius:var(--r-md);padding:12px">';
+  h += '<div style="font-size:12px;color:var(--c-text2)">△→× 転換率(精度)</div>';
+  h += '<div style="font-size:28px;font-weight:600;color:var(--c-warn)">'+(triP.rate==null?'—':Math.round(triP.rate*100)+'%')+'</div>';
+  h += '<div style="font-size:11px;color:var(--c-text3)">'+(triP.rate==null?'△が5件未満':'△'+triP.total+'件中 '+triP.hit+'件が90日内に×へ')+'</div>';
+  h += '</div>';
+  h += '<div style="flex:1;min-width:150px;background:var(--c-bg2);border-radius:var(--r-md);padding:12px">';
+  h += '<div style="font-size:12px;color:var(--c-text2)">×の事前察知率(再現率)</div>';
+  h += '<div style="font-size:28px;font-weight:600;color:var(--c-success)">'+(triR.rate==null?'—':Math.round(triR.rate*100)+'%')+'</div>';
+  h += '<div style="font-size:11px;color:var(--c-text3)">'+(triR.rate==null?'×が5件未満':'×'+triR.total+'件中 '+triR.hit+'件は事前に△あり')+'</div>';
+  h += '</div>';
+  h += '</div></div>';
+
+  // ① △→× リードタイム
+  var lts = computeLeadTimes();
+  h += '<div class="analysis-card">';
+  h += '<div class="analysis-title">⏱ △→× リードタイム(観察から不具合まで)</div>';
+  if(lts.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">△の後に×が発生した記録はまだありません。</div>'; }
+  else {
+    var avg = Math.round(lts.reduce(function(a,b){return a+b.days;},0)/lts.length);
+    h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:8px">平均 <b style="font-size:18px;color:var(--c-warn)">'+avg+'日</b>(△が付いてから×になるまで・'+lts.length+'件)</div>';
+    lts.slice(0,8).forEach(function(o){
+      var it2=null; for(var k=0;k<items.length;k++){ if(items[k].id===o.itemId){ it2=items[k]; break; } }
+      h += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--c-bd);font-size:13px">';
+      h += '<div style="min-width:56px;font-weight:600;color:var(--c-warn)">'+o.days+'日</div>';
+      h += '<div style="flex:1;min-width:0">'+(it2?esc(it2.place)+(it2.side?' / '+esc(it2.side):''):'')+'<div style="font-size:11px;color:var(--c-text3)">'+esc(o.watchDate)+' △ → '+esc(o.ngDate)+' ×</div></div>';
+      h += '</div>';
+    });
+  }
+  h += '</div>';
+
+  // ② 再発間隔 + Laplace傾向
+  var rec = computeRecurrence();
+  h += '<div class="analysis-card">';
+  h += '<div class="analysis-title">🔁 再発間隔と傾向(Laplace検定)</div>';
+  if(rec.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">3回以上NGが出た箇所がまだありません。</div>'; }
+  else {
+    var trendLabel={up:'⚠ 悪化(頻発化)',flat:'→ 横ばい',down:'✓ 改善(疎化)'};
+    var trendColor={up:'var(--c-danger)',flat:'var(--c-text2)',down:'var(--c-success)'};
+    rec.slice(0,10).forEach(function(r){
+      h += '<div style="padding:8px 0;border-bottom:1px solid var(--c-bd)">';
+      h += '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>'+(r.it?esc(r.it.place)+(r.it.side?' ('+esc(r.it.side)+')':''):esc(r.itemId))+'</span><span style="color:'+trendColor[r.trend]+';font-weight:600;white-space:nowrap">'+trendLabel[r.trend]+'</span></div>';
+      h += '<div style="font-size:11px;color:var(--c-text3);margin-top:2px">'+r.count+'回 ・ 平均間隔 '+r.avgGap+'日 ・ 直近 '+esc(r.lastDate)+'</div>';
+      h += '</div>';
+    });
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">※ Laplace検定: 発生が時間とともに頻発化(悪化)/疎化(改善)しているかの統計判定</div>';
+  }
+  h += '</div>';
+
+  // ⑤ NG回数 月次推移
+  var mng = computeMonthlyNG();
+  h += '<div class="analysis-card">';
+  h += '<div class="analysis-title">📉 NG発生数の月次推移</div>';
+  if(mng.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
+  else {
+    var maxm=Math.max.apply(null, mng.map(function(x){return x.count;}));
+    var bw=Math.max(18, Math.floor(560/mng.length)-6);
+    var chartH=120;
+    h += '<svg viewBox="0 0 '+(mng.length*(bw+6)+10)+' '+(chartH+28)+'" style="width:100%;height:auto;max-height:170px">';
+    mng.forEach(function(x,i){ var bh=maxm?Math.round(x.count/maxm*chartH):0; var bx=10+i*(bw+6); var by=chartH-bh+4;
+      h += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="3" fill="var(--c-danger)"></rect>';
+      h += '<text x="'+(bx+bw/2)+'" y="'+(by-3)+'" text-anchor="middle" font-size="11" fill="var(--c-text2)">'+x.count+'</text>';
+      h += '<text x="'+(bx+bw/2)+'" y="'+(chartH+18)+'" text-anchor="middle" font-size="9" fill="var(--c-text3)">'+esc(x.ym.substring(2))+'</text>';
+    });
+    h += '</svg>';
+  }
+  h += '</div>';
+
+  // ③ 場所×月 NGヒートマップ(設備内)
+  var hm = computeHeatmap();
+  h += '<div class="analysis-card">';
+  h += '<div class="analysis-title">🗺 場所×月 NGヒートマップ('+esc(m.name)+')</div>';
+  if(hm.places.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
+  else {
+    var maxv=0; for(var kk in hm.cell){ if(hm.cell[kk]>maxv) maxv=hm.cell[kk]; }
+    h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px">';
+    h += '<tr><th style="position:sticky;left:0;background:var(--c-bg);padding:4px 8px;text-align:left;border:1px solid var(--c-bd)">場所＼月</th>';
+    hm.months.forEach(function(ym){ h += '<th style="padding:4px 6px;border:1px solid var(--c-bd);white-space:nowrap;color:var(--c-text2)">'+esc(ym.substring(2))+'</th>'; });
+    h += '</tr>';
+    hm.places.forEach(function(pl){
+      h += '<tr><td style="position:sticky;left:0;background:var(--c-bg);padding:4px 8px;border:1px solid var(--c-bd);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(pl)+'</td>';
+      hm.months.forEach(function(ym){ var v=hm.cell[pl+'|'+ym]||0; var op=maxv?(v/maxv):0; var bg=v===0?'transparent':'rgba(217,48,37,'+(0.12+op*0.7).toFixed(2)+')'; var col=op>0.5?'#fff':'var(--c-text)';
+        h += '<td style="padding:4px 6px;border:1px solid var(--c-bd);text-align:center;background:'+bg+';color:'+col+';font-weight:'+(v?'600':'400')+'">'+(v||'')+'</td>'; });
+      h += '</tr>';
+    });
+    h += '</table></div>';
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">色が濃いほどNG多発。設備('+esc(m.name)+')内の箇所×月で集計しています。</div>';
+  }
+  h += '</div>';
+
   return h;
 }
 
@@ -1981,11 +2450,11 @@ function monthTableHTML(items, records, days, forPrint){
       var v = r.v;
       if(r.note && v==='ng'){ notes.push((isWeek?(c.label):(r.day+'日'))+(r.day&&isWeek?'('+r.day+'日)':'')+':'+r.note); }
       if(forPrint){
-        h += '<td class="'+(v==='ok'?'ok-cell':v==='ng'?'ng-cell':'')+'">'+(v==='ok'?'○':v==='ng'?'×':'')+'</td>';
+        h += '<td class="'+(v==='ok'?'ok-cell':v==='ng'?'ng-cell':'')+'">'+(v==='ok'?'○':v==='ng'?'×':v==='watch'?'△':'')+'</td>';
       } else {
-        var col = v==='ok'?'#060':v==='ng'?'#c00':'#000';
-        var bg = v==='ng'?'#ffe8e8':'#fff';
-        h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-weight:bold;font-size:11px;color:'+col+';background:'+bg+'">'+(v==='ok'?'○':v==='ng'?'×':'')+'</td>';
+        var col = v==='ok'?'#060':v==='ng'?'#c00':v==='watch'?'#b8860b':'#000';
+        var bg = v==='ng'?'#ffe8e8':v==='watch'?'#fff7e0':'#fff';
+        h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-weight:bold;font-size:11px;color:'+col+';background:'+bg+'">'+(v==='ok'?'○':v==='ng'?'×':v==='watch'?'△':'')+'</td>';
       }
     });
     if(forPrint) h += '<td style="font-size:6pt">'+esc(notes.join(' / '))+'</td>';
@@ -2157,6 +2626,21 @@ function attachHandlers(){
   var idl = document.querySelectorAll('[data-issue-delete]');
   for(var i=0;i<idl.length;i++){ idl[i].onclick = (function(id){ return function(){ deleteIssueFromList(id); }; })(idl[i].getAttribute('data-issue-delete')); }
 
+  // 経過観察タブ
+  var wds = document.querySelectorAll('[data-watch-detail]');
+  for(var i=0;i<wds.length;i++){ wds[i].onchange = (function(id){ return function(){ updateWatch(id,'detail',this.value,true); }; })(wds[i].getAttribute('data-watch-detail')); }
+  var wcs = document.querySelectorAll('[data-watch-comment]');
+  for(var i=0;i<wcs.length;i++){ wcs[i].onchange = (function(id){ return function(){ updateWatch(id,'comment',this.value,true); }; })(wcs[i].getAttribute('data-watch-comment')); }
+  var was = document.querySelectorAll('[data-watch-assignee]');
+  for(var i=0;i<was.length;i++){ was[i].onchange = (function(id){ return function(){ updateWatch(id,'assignee',this.value,true); }; })(was[i].getAttribute('data-watch-assignee')); }
+  var wss = document.querySelectorAll('[data-watch-status]');
+  for(var i=0;i<wss.length;i++){ wss[i].onchange = (function(id){ return function(){ updateWatch(id,'status',this.value); }; })(wss[i].getAttribute('data-watch-status')); }
+  var wdl = document.querySelectorAll('[data-watch-delete]');
+  for(var i=0;i<wdl.length;i++){ wdl[i].onclick = (function(id){ return function(){ deleteWatchFromList(id); }; })(wdl[i].getAttribute('data-watch-delete')); }
+  // 箇所別履歴タブ
+  var pts = document.querySelectorAll('[data-point]');
+  for(var i=0;i<pts.length;i++){ pts[i].onclick = (function(id){ return function(){ openPointHist(id); }; })(pts[i].getAttribute('data-point')); }
+  if(el('point-search')){ el('point-search').oninput = function(){ var q=this.value.toLowerCase(); var rows=document.querySelectorAll('.point-row'); for(var i=0;i<rows.length;i++){ var s=rows[i].getAttribute('data-search')||''; rows[i].style.display = (!q || s.indexOf(q)>=0)?'':'none'; } }; }
   // 項目タブ
   if(el('btn-additem')) el('btn-additem').onclick = addItem;
   if(el('btn-init')) el('btn-init').onclick = initializeSheet;
