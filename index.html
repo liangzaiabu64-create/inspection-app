@@ -1412,19 +1412,20 @@ function getMonthColumns(mid, ym){
 // NGがあればNG優先。点検した日付も返す。
 function pickColResult(col, records, itemId){
   var result = null, note = '', dayUsed = '';
+  var rank = { ok:1, watch:2, ng:3 };
   for(var i=0;i<col.dates.length;i++){
     var dk = col.dates[i];
     var rec = records[dk];
     if(!rec || !rec.results) continue;
     var v = rec.results[itemId];
-    if(!v) continue;
+    if(v!=='ok' && v!=='ng' && v!=='watch') continue;
     var n = (rec.notes && rec.notes[itemId]) || '';
     var dayNum = Number(dk.split('-')[2]);
-    if(v==='ng'){
-      // NGは最優先で採用(複数あれば最後のNG)
-      result = 'ng'; note = n; dayUsed = dayNum;
-    } else if(result !== 'ng'){
-      result = 'ok'; if(!dayUsed) dayUsed = dayNum;
+    // 優先度: ×(ng) > △(watch) > ○(ok)。重い判定を採用。NGは複数あれば最後のNGのメモ/日。
+    if(result===null || rank[v] > rank[result] || (v==='ng' && result==='ng')){
+      result = v;
+      if(v==='ng'){ note = n; dayUsed = dayNum; }
+      else if(!dayUsed){ dayUsed = dayNum; }
     }
   }
   return { v:result, note:note, day:dayUsed };
