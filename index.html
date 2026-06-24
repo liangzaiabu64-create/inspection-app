@@ -529,6 +529,7 @@ function refresh(){
     syncIssuesFromRecords();
     mergeOpenWatch();
     syncWatchFromRecords();
+    escalateWatchToNG();
     STATE.staffNames = (data.staffNames && data.staffNames.length) ? data.staffNames : STATE.staffNames;
     STATE.sync = { state:'online', message:'最新です', at:timeStr() };
     STATE.loading = false;
@@ -975,6 +976,8 @@ function setResult(itemId, value){
   storeRecord(STATE.date, cur);
   // △を選択したら即座に経過観察リストへ登録(未点検扱いにならないように)
   if(setWatch) syncWatchFromRecords();
+  // ×がついたら、その項目の経過観察を自動で完了(不具合リストへ引き継ぎ)
+  escalateWatchToNG();
   // フィルタ中は、判定により表示対象が変わるため全体を再描画。
   // フィルタなし(すべて表示)のときは軽量に行だけ更新。
   if(STATE.checkFilter && STATE.checkFilter !== 'all'){
@@ -1256,7 +1259,7 @@ function confirmLeaveCheck(){
   return true;
 }
 function switchMachine(mid){ if(!confirmLeaveCheck()) return; flushSave(); STATE.machineId=mid; STATE.editingItem=null; STATE.checkFilter='all'; render(); }
-function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); if(t==='watch') syncWatchFromRecords(); render(); }
+function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); if(t==='watch'){ syncWatchFromRecords(); escalateWatchToNG(); } render(); }
 function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 
 // ============================================================
@@ -1910,6 +1913,52 @@ function syncWatchFromRecords(){
   }
 }
 
+// △だった項目に×がついたら、その経過観察を自動で完了させる(不具合リストへ引き継ぎ)
+function escalateWatchToNG(){
+  var mids = ['nid','shikomi'];
+  for(var mi=0; mi<mids.length; mi++){
+    var mid = mids[mi];
+    var records = STATE.allRecords[mid] || {};
+    var watch = STATE.allWatch[mid] || [];
+    if(watch.length===0) continue;
+    // 各項目の×発生日を集める
+    var ngDates = {};
+    for(var d in records){
+      var r = records[d]; if(!r || !r.results) continue;
+      for(var id in r.results){ if(r.results[id]==='ng'){ (ngDates[id] = ngDates[id] || []).push(d); } }
+    }
+    var toComplete = [];
+    watch.forEach(function(w){
+      if(w.status==='完了') return;
+      var nd = ngDates[w.itemId]; if(!nd) return;
+      // 観察開始日(w.date)以降に×が出ているか。最も早い該当×日を完了日にする。
+      var hit = null;
+      for(var i=0;i<nd.length;i++){ if(nd[i] >= w.date){ if(!hit || nd[i] < hit) hit = nd[i]; } }
+      if(hit){ toComplete.push({ w:w, ngDate:hit }); }
+    });
+    if(toComplete.length>0){
+      var done = STATE.allWatchDone[mid] || [];
+      toComplete.forEach(function(o){
+        o.w.status = '完了';
+        if(!o.w.doneDate) o.w.doneDate = o.ngDate;
+        if(!o.w.comment) o.w.comment = '×が発生したため完了(不具合リストへ移行)';
+        if(!done.some(function(x){ return x.id===o.w.id; })){
+          var cp = {}; for(var q in o.w){ if(q!=='_unsaved') cp[q] = o.w[q]; }
+          done.push(cp);
+        }
+      });
+      STATE.allWatch[mid] = watch.filter(function(w){ return w.status!=='完了'; });
+      STATE.allWatchDone[mid] = done;
+      if(isGasConfigured){
+        toComplete.forEach(function(o){
+          var toSave = {}; for(var p in o.w){ if(p!=='_unsaved') toSave[p] = o.w[p]; }
+          enqueueSave({ machineId: mid, watch: toSave }, 'completeWatch');
+        });
+      }
+    }
+  }
+}
+
 // 同一項目の未解決重複を1件に統合
 function mergeOpenWatch(){
   var mids = ['nid','shikomi'];
@@ -2054,7 +2103,7 @@ function renderWatch(){
   var open = watch.filter(function(w){ return w.status!=='完了'; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
   var h = '<div style="padding:14px;background:var(--c-warn-bg);border:1px solid var(--c-warn);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
   h += '<b style="color:var(--c-warn)">'+esc(m.name)+' 経過観察リスト</b><br>';
-  h += '点検で△がついた項目が自動で登録されます。「完了」にすると一覧から消え、スプレッドシートの「経過観察完了」シートへ移動します。不具合(×)とは独立して管理されます。';
+  h += '点検で△がついた項目が自動で登録されます。「完了」にすると一覧から消え「経過観察完了」シートへ移動します。同じ項目に×がつくと、経過観察は自動で完了し不具合リストへ引き継がれます。';
   h += '</div>';
   if(open.length===0){ h += '<div class="empty">経過観察中の項目はありません</div>'; return h; }
   h += '<div style="font-size:14px;font-weight:500;color:var(--c-warn);margin:8px 0">観察中 ('+open.length+'件)</div>';
