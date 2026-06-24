@@ -964,14 +964,17 @@ function jumpToNG(){
 function setResult(itemId, value){
   if(!STATE.editMode) return;
   var cur = clone(getCurrent());
+  var setWatch = false;
   if(cur.results[itemId] === value) delete cur.results[itemId];
-  else cur.results[itemId] = value;
+  else { cur.results[itemId] = value; if(value === 'watch') setWatch = true; }
   var insp = el('inp-inspector');
   var chk = el('inp-checker');
   if(insp) cur.inspector = insp.value;
   if(chk) cur.checker = chk.value;
   // データ更新(画面全体は再描画しない)
   storeRecord(STATE.date, cur);
+  // △を選択したら即座に経過観察リストへ登録(未点検扱いにならないように)
+  if(setWatch) syncWatchFromRecords();
   // フィルタ中は、判定により表示対象が変わるため全体を再描画。
   // フィルタなし(すべて表示)のときは軽量に行だけ更新。
   if(STATE.checkFilter && STATE.checkFilter !== 'all'){
@@ -1558,6 +1561,7 @@ function renderCheck(){
   h += '<div class="filter-group">';
   h += '<button class="filter-btn '+(f==='all'?'on':'')+'" data-filter="all">すべて ('+stats.total+')</button>';
   h += '<button class="filter-btn '+(f==='undone'?'on':'')+'" data-filter="undone">未点検 ('+undone+')</button>';
+  h += '<button class="filter-btn '+(f==='watch'?'on':'')+'" data-filter="watch">経過観察 ('+stats.watch+')</button>';
   h += '<button class="filter-btn '+(f==='ng'?'on':'')+'" data-filter="ng">NG ('+stats.ng+')</button>';
   h += '</div>';
   if(stats.ng>0){ h += '<button class="btn sm danger" id="btn-jump-ng" style="margin-left:auto">⚠ NGへ移動</button>'; }
@@ -1572,6 +1576,7 @@ function renderCheck(){
     var visible = list.filter(function(it){
       var v = cur.results[it.id];
       if(f==='undone') return !v;
+      if(f==='watch') return v==='watch';
       if(f==='ng') return v==='ng';
       return true;
     });
@@ -1593,7 +1598,7 @@ function renderCheck(){
     });
   });
   if(shownTotal===0){
-    h += '<div class="empty">'+(f==='undone'?'未点検の項目はありません 👍':f==='ng'?'NGの項目はありません 👍':'項目がありません')+'</div>';
+    h += '<div class="empty">'+(f==='undone'?'未点検の項目はありません 👍':f==='watch'?'経過観察中の項目はありません 👍':f==='ng'?'NGの項目はありません 👍':'項目がありません')+'</div>';
   }
   h += '</div>';
 
@@ -2358,9 +2363,9 @@ function renderAnalysis(){
   if(mng.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
   else {
     var maxm=Math.max.apply(null, mng.map(function(x){return x.count;}));
-    var bw=Math.max(18, Math.floor(560/mng.length)-6);
+    var bw=Math.min(56, Math.max(18, Math.floor(560/mng.length)-6));
     var chartH=120;
-    h += '<svg viewBox="0 0 '+(mng.length*(bw+6)+10)+' '+(chartH+28)+'" style="width:100%;height:auto;max-height:170px">';
+    h += '<svg viewBox="0 0 '+(mng.length*(bw+6)+10)+' '+(chartH+28)+'" width="'+(mng.length*(bw+6)+10)+'" style="max-width:100%;height:auto;max-height:170px;display:block">';
     mng.forEach(function(x,i){ var bh=maxm?Math.round(x.count/maxm*chartH):0; var bx=10+i*(bw+6); var by=chartH-bh+4;
       h += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="3" fill="var(--c-danger)"></rect>';
       h += '<text x="'+(bx+bw/2)+'" y="'+(by-3)+'" text-anchor="middle" font-size="11" fill="var(--c-text2)">'+x.count+'</text>';
@@ -2700,6 +2705,26 @@ window.addEventListener('beforeunload', function(e){
     return e.returnValue;
   }
 });
+
+function initScrollTop(){
+  if(document.getElementById('scrolltop-btn')) return;
+  var btn = document.createElement('button');
+  btn.id = 'scrolltop-btn';
+  btn.className = 'no-print';
+  btn.setAttribute('aria-label','上へ戻る');
+  btn.textContent = '↑';
+  btn.style.cssText = 'position:fixed;right:16px;bottom:88px;width:50px;height:50px;border-radius:50%;border:none;background:var(--c-info,#1a73e8);color:#fff;font-size:24px;font-weight:700;box-shadow:0 3px 12px rgba(0,0,0,0.28);cursor:pointer;z-index:700;display:none;align-items:center;justify-content:center;padding:0;line-height:1';
+  btn.onclick = function(){ window.scrollTo({ top:0, behavior:'smooth' }); };
+  document.body.appendChild(btn);
+  var onScroll = function(){
+    if(document.querySelector('.modal-bg')){ btn.style.display='none'; return; }
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    btn.style.display = y > 300 ? 'flex' : 'none';
+  };
+  window.addEventListener('scroll', onScroll, { passive:true });
+  onScroll();
+}
+try { initScrollTop(); } catch(e){}
 
 try {
   refresh();
