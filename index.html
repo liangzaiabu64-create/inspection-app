@@ -1661,7 +1661,7 @@ function renderIssues(){
 
   var h = '<div style="padding:14px;background:var(--c-danger-bg);border:1px solid var(--c-danger-bd);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
   h += '<b style="color:var(--c-danger)">'+esc(m.name)+' 不具合リスト</b><br>';
-  h += '点検で×がついた項目が自動で登録されます。「完了」にすると一覧から消え、スプレッドシートの「完了済み」シートへ移動します。';
+  h += '点検で×がついた項目が自動で登録されます。対応が済んだら「✓ 完了」ボタンを押すと一覧から消え「完了済み」シートへ移動します(記録は残ります)。「🗑 削除」は不具合自体を取り消します。';
   h += '</div>';
 
   if(open.length===0){
@@ -1713,7 +1713,8 @@ function issueCard(is){
   });
   h += '</select></label>';
   if(!isDone){
-    h += '<button class="btn sm danger" data-issue-delete="'+is.id+'" style="margin-left:auto">🗑 削除</button>';
+    h += '<button class="btn sm" data-issue-complete="'+is.id+'" style="margin-left:auto;background:var(--c-success);color:#fff;border:none;font-weight:600">✓ 完了</button>';
+    h += '<button class="btn sm danger" data-issue-delete="'+is.id+'">🗑 削除</button>';
   }
   h += '</div>';
   h += '</div>';
@@ -2677,6 +2678,8 @@ function attachHandlers(){
   for(var i=0;i<ias.length;i++){ ias[i].onchange = (function(id){ return function(){ updateIssue(id,'assignee',this.value,true); }; })(ias[i].getAttribute('data-issue-assignee')); }
   var iss = document.querySelectorAll('[data-issue-status]');
   for(var i=0;i<iss.length;i++){ iss[i].onchange = (function(id){ return function(){ updateIssue(id,'status',this.value); }; })(iss[i].getAttribute('data-issue-status')); }
+  var icp = document.querySelectorAll('[data-issue-complete]');
+  for(var i=0;i<icp.length;i++){ icp[i].onclick = (function(id){ return function(){ updateIssue(id,'status','完了'); }; })(icp[i].getAttribute('data-issue-complete')); }
   var idl = document.querySelectorAll('[data-issue-delete]');
   for(var i=0;i<idl.length;i++){ idl[i].onclick = (function(id){ return function(){ deleteIssueFromList(id); }; })(idl[i].getAttribute('data-issue-delete')); }
 
