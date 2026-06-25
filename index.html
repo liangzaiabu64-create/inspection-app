@@ -1917,46 +1917,59 @@ function syncWatchFromRecords(){
 
 // △だった項目に×がついたら、その経過観察を自動で完了させる(不具合リストへ引き継ぎ)
 function escalateWatchToNG(){
+  // 経過観察を△記録に追従させる:
+  //  ・△が×/○に上書きされた(訂正) → 経過観察を履歴に残さず削除(台帳には書かない)
+  //  ・△が健在 かつ 観察日より「後」に×がある → 完了へエスカレーション
+  //  ・既存の完了済みでも、自動エスカレーション分で△が消えている幽霊は掃除(手動完了は保護)
   var mids = ['nid','shikomi'];
+  var AUTO_DONE_COMMENT = '×が発生したため完了(不具合リストへ移行)';
   for(var mi=0; mi<mids.length; mi++){
     var mid = mids[mi];
     var records = STATE.allRecords[mid] || {};
-    var watch = STATE.allWatch[mid] || [];
-    if(watch.length===0) continue;
-    // 各項目の×発生日を集める
+    var openList = STATE.allWatch[mid] || [];
+    var doneList = STATE.allWatchDone[mid] || [];
     var ngDates = {};
     for(var d in records){
       var r = records[d]; if(!r || !r.results) continue;
       for(var id in r.results){ if(r.results[id]==='ng'){ (ngDates[id] = ngDates[id] || []).push(d); } }
     }
-    var toComplete = [];
-    watch.forEach(function(w){
+    var hasWatchRec = function(w){
+      var rec = records[w.date];
+      return !!(rec && rec.results && rec.results[w.itemId]==='watch');
+    };
+    var completeIds = {}, discardIds = {}, newlyDone = [];
+    // 観察中を仕分け
+    openList.forEach(function(w){
       if(w.status==='完了') return;
+      if(!hasWatchRec(w)){ discardIds[w.id] = true; return; }   // 訂正された△ → 削除
       var nd = ngDates[w.itemId]; if(!nd) return;
-      // 観察開始日(w.date)以降に×が出ているか。最も早い該当×日を完了日にする。
       var hit = null;
-      for(var i=0;i<nd.length;i++){ if(nd[i] >= w.date){ if(!hit || nd[i] < hit) hit = nd[i]; } }
-      if(hit){ toComplete.push({ w:w, ngDate:hit }); }
-    });
-    if(toComplete.length>0){
-      var done = STATE.allWatchDone[mid] || [];
-      toComplete.forEach(function(o){
-        o.w.status = '完了';
-        if(!o.w.doneDate) o.w.doneDate = o.ngDate;
-        if(!o.w.comment) o.w.comment = '×が発生したため完了(不具合リストへ移行)';
-        if(!done.some(function(x){ return x.id===o.w.id; })){
-          var cp = {}; for(var q in o.w){ if(q!=='_unsaved') cp[q] = o.w[q]; }
-          done.push(cp);
-        }
-      });
-      STATE.allWatch[mid] = watch.filter(function(w){ return w.status!=='完了'; });
-      STATE.allWatchDone[mid] = done;
-      if(isGasConfigured){
-        toComplete.forEach(function(o){
-          var toSave = {}; for(var p in o.w){ if(p!=='_unsaved') toSave[p] = o.w[p]; }
-          enqueueSave({ machineId: mid, watch: toSave }, 'completeWatch');
-        });
+      for(var i=0;i<nd.length;i++){ if(nd[i] > w.date){ if(!hit || nd[i] < hit) hit = nd[i]; } }
+      if(hit){
+        completeIds[w.id] = true;
+        var cp = {}; for(var q in w){ if(q!=='_unsaved') cp[q] = w[q]; }
+        cp.status = '完了';
+        if(!cp.doneDate) cp.doneDate = hit;
+        if(!cp.comment) cp.comment = AUTO_DONE_COMMENT;
+        newlyDone.push(cp);
       }
+    });
+    // 既存の完了済みから、訂正由来の幽霊を掃除(自動エスカレーション分のみ。手動完了は保護)
+    doneList.forEach(function(w){
+      if(w.comment === AUTO_DONE_COMMENT && !hasWatchRec(w)){ discardIds[w.id] = true; }
+    });
+    var discardArr = Object.keys(discardIds);
+    if(Object.keys(completeIds).length || discardArr.length){
+      STATE.allWatch[mid] = openList.filter(function(w){ return !completeIds[w.id] && !discardIds[w.id]; });
+    }
+    if(newlyDone.length || discardArr.length){
+      var nextDone = doneList.filter(function(w){ return !discardIds[w.id]; });
+      newlyDone.forEach(function(cp){ if(!nextDone.some(function(x){ return x.id===cp.id; })) nextDone.push(cp); });
+      STATE.allWatchDone[mid] = nextDone;
+    }
+    if(isGasConfigured){
+      newlyDone.forEach(function(cp){ enqueueSave({ machineId: mid, watch: cp }, 'completeWatch'); });
+      discardArr.forEach(function(did){ enqueueSave({ machineId: mid, watchId: did }, 'discardWatch'); });
     }
   }
 }
