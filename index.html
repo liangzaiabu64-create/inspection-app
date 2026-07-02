@@ -509,6 +509,8 @@ function refresh(){
   STATE.sync = { state:'syncing', message:'同期中...', at:null };
   render();
   callGAS('loadAll', {}, function(data){
+    // シート側に項目が実在するか(STATE.allItemsはシート空だとデフォルトへフォールバックするため、実数はここで記録)
+    STATE.sheetHasItems = !!((data.items && data.items.nid && data.items.nid.length) || (data.items && data.items.shikomi && data.items.shikomi.length));
     var mids = ['nid','shikomi'];
     for(var i=0;i<mids.length;i++){
       var mid = mids[i];
@@ -898,6 +900,16 @@ function openPhotoModal(photoId){
 }
 
 function initializeSheet(){
+  // 誤操作ガード: 既に項目が存在するシートには実行不可。
+  // (実行すると全項目が初期セットで上書きされ、過去の記録・不具合・経過観察・写真との紐付けが壊れるため)
+  if(STATE.sheetHasItems === undefined){
+    alert('シートの状態を確認できていません。\n「最新を取得」を押して同期が完了してから実行してください。');
+    return;
+  }
+  if(STATE.sheetHasItems){
+    alert('中止しました: スプレッドシートには既に点検項目が登録されています。\n「初期項目を投入」は空のシート専用です。実行すると項目が初期セット(NID 58・仕込み 48)で上書きされ、過去の記録・不具合・経過観察・見本写真との紐付けが壊れます。\n項目の追加・変更は「項目管理」から行ってください。');
+    return;
+  }
   if(!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
   STATE.sync = { state:'syncing', message:'初期化中...', at:null }; updateSyncBar();
   callGAS('init', {}, function(){
@@ -1933,15 +1945,22 @@ function escalateWatchToNG(){
       var r = records[d]; if(!r || !r.results) continue;
       for(var id in r.results){ if(r.results[id]==='ng'){ (ngDates[id] = ngDates[id] || []).push(d); } }
     }
-    var hasWatchRec = function(w){
+    // その日のその項目の判定値(記録なし/空白は undefined)
+    var judgeOf = function(w){
       var rec = records[w.date];
-      return !!(rec && rec.results && rec.results[w.itemId]==='watch');
+      return (rec && rec.results) ? rec.results[w.itemId] : undefined;
+    };
+    // 「訂正された△」= その日の判定が明確に ○ か × に上書きされている場合のみ。
+    // 記録なし・空白(旧GAS時代の△は空白で保存されている)は訂正と見なさず保持する。
+    var isCorrected = function(w){
+      var v = judgeOf(w);
+      return v==='ok' || v==='ng';
     };
     var completeIds = {}, discardIds = {}, newlyDone = [];
     // 観察中を仕分け
     openList.forEach(function(w){
       if(w.status==='完了') return;
-      if(!hasWatchRec(w)){ discardIds[w.id] = true; return; }   // 訂正された△ → 削除
+      if(isCorrected(w)){ discardIds[w.id] = true; return; }   // ○/×に上書き済みの△のみ削除(空白=旧データは保持)
       var nd = ngDates[w.itemId]; if(!nd) return;
       var hit = null;
       for(var i=0;i<nd.length;i++){ if(nd[i] > w.date){ if(!hit || nd[i] < hit) hit = nd[i]; } }
@@ -1956,7 +1975,7 @@ function escalateWatchToNG(){
     });
     // 既存の完了済みから、訂正由来の幽霊を掃除(自動エスカレーション分のみ。手動完了は保護)
     doneList.forEach(function(w){
-      if(w.comment === AUTO_DONE_COMMENT && !hasWatchRec(w)){ discardIds[w.id] = true; }
+      if(w.comment === AUTO_DONE_COMMENT && isCorrected(w)){ discardIds[w.id] = true; }
     });
     var discardArr = Object.keys(discardIds);
     if(Object.keys(completeIds).length || discardArr.length){
