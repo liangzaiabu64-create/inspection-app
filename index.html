@@ -525,8 +525,6 @@ function refresh(){
   STATE.sync = { state:'syncing', message:'同期中...', at:null };
   render();
   callGAS('loadAll', {}, function(data){
-    // シート側に項目が実在するか(STATE.allItemsはシート空だとデフォルトへフォールバックするため、実数はここで記録)
-    STATE.sheetHasItems = !!((data.items && data.items.nid && data.items.nid.length) || (data.items && data.items.shikomi && data.items.shikomi.length));
     var mids = ['nid','shikomi'];
     for(var i=0;i<mids.length;i++){
       var mid = mids[i];
@@ -1036,42 +1034,6 @@ function openPhotoModal(photoId){
   if(cb) cb.onclick = function(){ div.remove(); };
 }
 
-function initializeSheet(){
-  // 誤操作ガード: 既に項目が存在するシートには実行不可。
-  // (実行すると全項目が初期セットで上書きされ、過去の記録・不具合・写真との紐付けが壊れるため)
-  if(STATE.sheetHasItems === undefined){
-    alert('シートの状態を確認できていません。\n「最新を取得」を押して同期が完了してから実行してください。');
-    return;
-  }
-  if(STATE.sheetHasItems){
-    alert('中止しました: スプレッドシートには既に点検項目が登録されています。\n「初期項目を投入」は空のシート専用です。実行すると項目が初期セット(NID 58・仕込み 48)で上書きされ、過去の記録・不具合・見本写真との紐付けが壊れます。\n項目の追加・変更は「項目管理」から行ってください。');
-    return;
-  }
-  if(!confirm('スプレッドシートに初期点検項目(NID 58項目、仕込み 48項目)を書き込みます。\n既存の項目は上書きされます。\n実行しますか?')) return;
-  STATE.sync = { state:'syncing', message:'初期化中...', at:null }; updateSyncBar();
-  callGAS('init', {}, function(){
-    // NID項目をPOSTで一括送信 → 完了後 仕込み項目を送信
-    postGAS('saveItems', { machineId:'nid', items: NID_ITEMS }, function(){
-      postGAS('saveItems', { machineId:'shikomi', items: SHIKOMI_ITEMS }, function(){
-        refresh();
-        alert('初期化完了しました(NID 58項目・仕込み 48項目)');
-      }, function(e){ tryChunkFallback(); });
-    }, function(e){ tryChunkFallback(); });
-  }, syncErr);
-
-  // POSTが通らない環境用のフォールバック(チャンク送信)
-  function tryChunkFallback(){
-    STATE.sync = { state:'syncing', message:'初期化中(分割送信)...', at:null }; updateSyncBar();
-    sendItemsChunked('nid', NID_ITEMS, function(){
-      sendItemsChunked('shikomi', SHIKOMI_ITEMS, function(){
-        refresh();
-        alert('初期化完了しました(NID 58項目・仕込み 48項目)');
-      }, syncErr, '初期化中');
-    }, syncErr, '初期化中');
-  }
-  function syncErr(e){ STATE.sync={state:'error',message:'初期化失敗: '+e.message,at:null}; updateSyncBar(); }
-}
-
 // 指定機械の項目をチャンク分割送信する汎用関数
 // label: 進捗表示の文言。初期化と通常保存の両方から呼ばれるため、
 //        呼び出し元に合わせて変える(通常保存で「初期化中」と出ると、
@@ -1499,20 +1461,37 @@ function allIssuesForReport(){
   getIssues().forEach(function(is){ if(!is.id || !seen[is.id]){ if(is.id) seen[is.id]=true; out.push(is); } });
   return out;
 }
-// 対象月末時点で未解決だった不具合(発生日が月末以前で、月末までに完了していないもの)
+// 同じ項目の不具合が複数あれば1件にまとめる。帳票で同じNo.が何行も並ばないように
+// するため(完了ボタンを日数ぶん押す必要があった時期の水増しや、幽霊行が残っている)。
+// 情報が多いものを残し、同点なら発生日が早いもの(最初の発生)を残す。
+function dedupeIssuesByItem(list){
+  var best = {}, order = [];
+  list.forEach(function(is){
+    var k = is.itemId || ('__' + is.id);
+    if(!best[k]){ best[k] = is; order.push(k); return; }
+    var a = issueInfoScore(is), b = issueInfoScore(best[k]);
+    if(a > b || (a === b && (is.date||'') < (best[k].date||''))) best[k] = is;
+  });
+  return order.map(function(k){ return best[k]; });
+}
+// 未解決の不具合(対象月末までに発生し、まだ完了していないもの)。
+// 状況が「完了」のもの、完了日が入っているものは載せない。
+// ※完了日が入っていなくても状況が「完了」なら完了扱い(シートを直接整理した行など)。
 function openIssuesAsOf(ym){
   var monthEnd = ym + '-' + pad(daysInMonth(ym));
-  return allIssuesForReport().filter(function(is){
+  var list = allIssuesForReport().filter(function(is){
     if(!is.date || is.date > monthEnd) return false;
-    if(is.doneDate && is.doneDate <= monthEnd) return false;
+    if(is.status === '完了' || is.doneDate) return false;
     return true;
-  }).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  });
+  return dedupeIssuesByItem(list).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
 }
 // 対象月に完了した不具合
 function doneIssuesInMonth(ym){
-  return allIssuesForReport().filter(function(is){
+  var list = allIssuesForReport().filter(function(is){
     return !!is.doneDate && is.doneDate.substring(0,7) === ym;
-  }).sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
+  });
+  return dedupeIssuesByItem(list).sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
 }
 
 // ============================================================
@@ -1563,7 +1542,7 @@ function exportExcel(){
   var openIssues = openIssuesAsOf(STATE.printMonth);
   var doneIssues = doneIssuesInMonth(STATE.printMonth);
   var iaoa = [];
-  iaoa.push(['■ 未解決の不具合一覧 ('+openIssues.length+'件) ※'+mm+'月末時点・前月からの繰り越し含む']);
+  iaoa.push(['■ 未解決の不具合一覧 ('+openIssues.length+'件) ※前月からの繰り越し含む・完了済みは除く']);
   iaoa.push(['発生日','No.','場所','側','点検内容','不具合内容','対応コメント','担当者','対応状況']);
   if(openIssues.length===0){
     iaoa.push(['未解決の不具合はありません。']);
@@ -2025,9 +2004,7 @@ function renderItems(){
   h += '</div>';
   h += '<div style="font-size:12px;color:var(--c-text2);margin-top:6px">※No.を空欄にすると末尾に追加。番号を指定するとその位置に挿入され、以降の番号は自動で繰り下がります(常に1から連番に整理されます)。</div>';
   h += '</div>';
-  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-  h += '<div style="font-size:13px;color:var(--c-text2)">登録済み点検項目 ('+items.length+'件)</div>';
-  h += '<button class="btn sm" id="btn-init" '+dis+'>📥 初期項目を投入</button></div>';
+  h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:8px">登録済み点検項目 ('+items.length+'件)</div>';
   items.forEach(function(it){
     h += '<div class="item-mgr item-mgr-photo">';
     h += '<div class="item-row-no" style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
@@ -2402,7 +2379,7 @@ function renderMonthly(){
   var xlsxOk = (typeof XLSX !== 'undefined');
   var h = '<div class="print-config no-print">';
   h += '<h3 style="margin:0 0 12px;color:var(--c-info)">📅 月次まとめ出力</h3>';
-  h += '<p style="margin:0 0 14px;font-size:14px;color:var(--c-text2)">印刷: <b>'+esc(m.name)+' → '+m.paperSize+'サイズ横向き</b>。点検表の下に、対象月末時点の<b>未解決の不具合一覧</b>(繰り越し含む)と<b>対象月に完了した不具合一覧</b>も印刷されます。</p>';
+  h += '<p style="margin:0 0 14px;font-size:14px;color:var(--c-text2)">印刷: <b>'+esc(m.name)+' → '+m.paperSize+'サイズ横向き</b>。点検表の下に<b>未解決の不具合一覧</b>(繰り越し含む・完了済みは除く)と<b>対象月に完了した不具合一覧</b>も印刷されます。同じ項目の不具合は1行にまとめます。</p>';
   h += '<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">';
   h += '<div class="field"><label style="font-size:13px;color:var(--c-text2);margin-bottom:4px;display:block">対象月</label>';
   h += '<input type="month" id="inp-month" value="'+STATE.printMonth+'" style="height:44px;padding:0 12px;font-size:15px;border:1px solid var(--c-bd2);border-radius:var(--r-md)"></div>';
@@ -2499,7 +2476,7 @@ function buildPrintArea(){
   // 対象月末時点で未解決だった不具合(過去月からの繰り越し含む)
   var openIssues = openIssuesAsOf(STATE.printMonth);
   h += '<div style="margin-top:10px;page-break-inside:auto">';
-  h += '<div style="font-size:11pt;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;margin-bottom:4px">未解決の不具合一覧 ('+openIssues.length+'件) ※'+esc(pm)+'月末時点・前月からの繰り越し含む</div>';
+  h += '<div style="font-size:11pt;font-weight:bold;border-bottom:1.5px solid #000;padding-bottom:2px;margin-bottom:4px">未解決の不具合一覧 ('+openIssues.length+'件) ※前月からの繰り越し含む・完了済みは除く</div>';
   if(openIssues.length===0){
     h += '<div style="font-size:9pt">未解決の不具合はありません。</div>';
   } else {
@@ -2636,7 +2613,6 @@ function attachHandlers(){
   if(el('point-search')){ el('point-search').oninput = function(){ var q=this.value.toLowerCase(); var rows=document.querySelectorAll('.point-row'); for(var i=0;i<rows.length;i++){ var s=rows[i].getAttribute('data-search')||''; rows[i].style.display = (!q || s.indexOf(q)>=0)?'':'none'; } }; }
   // 項目タブ
   if(el('btn-additem')) el('btn-additem').onclick = addItem;
-  if(el('btn-init')) el('btn-init').onclick = initializeSheet;
   if(el('new-content')) el('new-content').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addItem(); };
   if(el('new-no')) el('new-no').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addItem(); };
   var eis = document.querySelectorAll('[data-edititem]');
