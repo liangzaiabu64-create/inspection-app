@@ -397,10 +397,24 @@ function el(id){ return document.getElementById(id); }
 // ============================================================
 // Apps Script 通信 (fetch GET → 失敗時 JSONP フォールバック)
 // ============================================================
+// GET で送れる URL の上限。Google の受付上限は実測 16,384 バイトだが、
+// 社内プロキシは 8KB で切ることが多い。通常の保存は約 2,300 文字なので
+// 8,000 でも 3 倍以上の余裕がある。
+// 超えるものは送っても必ず弾かれ、しかもエラー応答に CORS ヘッダが無い
+// ため fetch からは通信断と区別がつかない。送らずに恒久エラーとして返し、
+// 再試行の無駄(同じ長さを 5 回送って 5 回落ちる)を避ける。
+var GAS_URL_MAX = 8000;
+
 function callGAS(action, body, cb, errcb){
   if(!isGasConfigured){ errcb&&errcb(new Error('GAS未設定')); return; }
   body = body || {};
   body.action = action;
+  var urlLen = GAS_URL.length + ('?action=' + encodeURIComponent(action) + '&payload=' + encodeURIComponent(JSON.stringify(body))).length;
+  if(urlLen > GAS_URL_MAX){
+    // 他の失敗経路と同じく非同期で返す(呼び元のキュー処理が再帰しないように)
+    setTimeout(function(){ errcb && errcb(new Error('送信データが大きすぎます('+urlLen+'文字)。備考を短くしてください')); }, 0);
+    return;
+  }
   // まず fetch GET を試し、ダメなら JSONP にフォールバック
   fetchGAS(action, body, cb, function(e1){
     console.warn('fetch失敗、JSONPにフォールバック:', e1.message);
@@ -519,7 +533,9 @@ function refresh(){
   if(!isGasConfigured){ STATE.loading=false; render(); return; }
   // 未送信の入力があるまま取得すると、サーバの値で画面が上書きされて
   // 保存できていない入力が消える。先に利用者へ確認する。
-  if(unsentCount() > 0 || pendingData || saveTimer || hasPendingIssueSave()){
+  // 起動時(STATE.loading)は画面にまだ何も無く、前回の未送信分を復元して
+  // 送っている最中なので確認しない。
+  if(!STATE.loading && (unsentCount() > 0 || pendingData || saveTimer || hasPendingIssueSave())){
     if(!confirm('まだ保存できていない入力があります。\n最新を取得すると、その入力は失われます。\n\n通信が回復していれば「再試行」で先に保存できます。\nこのまま取得しますか?')) return;
   }
   STATE.sync = { state:'syncing', message:'同期中...', at:null };
@@ -733,36 +749,132 @@ function enqueueSave(payload, action){
     failedJobs = drop(failedJobs);
   }
   saveQueue.push(job);
+  persistUnsent();
   runSaveQueue();
 }
+
+// ------------------------------------------------------------
+// 未送信データの退避(localStorage)
+// ------------------------------------------------------------
+// 未送信のジョブはメモリ上にしか無く、タブレットのスリープ・タブ破棄・
+// 再読込で黙って消えていた。キューが変わるたびと画面が隠れるときに
+// localStorage へ控え、次回起動時に復元して送り直す。
+// localStorage が使えない環境でも本体の動作は止めない。
+var UNSENT_KEY = 'inspection_unsent_v1';
+var inflightJob = null;          // 送信中のジョブ(キューから外れている間の控え)
+var resyncAfterRestore = false;  // 復元したジョブを送り切ったら画面を読み直す
+
+function unsentJobsForStorage(){
+  var jobs = [];
+  // debounce 待ちの記録・不具合も、発火前に閉じられると消えるので含める
+  if(pendingData){
+    var p = pendingData;
+    jobs.push({ action:'saveRecord', payload:{ machineId:p.machineId, date:p.date, data:p.data, cleared:clearedFor(p.machineId, p.date) } });
+  }
+  for(var id in issueSavePending){ if(issueSavePending[id]) jobs.push({ action:'saveIssue', payload:issueSavePending[id] }); }
+  if(inflightJob) jobs.push({ action:inflightJob.action, payload:inflightJob.payload });
+  var i;
+  for(i=0;i<saveQueue.length;i++) jobs.push({ action:saveQueue[i].action, payload:saveQueue[i].payload });
+  for(i=0;i<failedJobs.length;i++) jobs.push({ action:failedJobs[i].action, payload:failedJobs[i].payload });
+  return jobs;
+}
+function persistUnsent(){
+  try {
+    var jobs = unsentJobsForStorage();
+    if(jobs.length === 0){ localStorage.removeItem(UNSENT_KEY); return; }
+    localStorage.setItem(UNSENT_KEY, JSON.stringify({ savedAt: new Date().toISOString(), jobs: jobs }));
+  } catch(e){ /* 容量超過・利用不可でも本体の動作は止めない */ }
+}
+// 起動時に呼ぶ。控えがあればキューへ戻して送信を始め、送り切ったら画面を読み直す。
+function restoreUnsent(){
+  var saved = null;
+  try {
+    var raw = localStorage.getItem(UNSENT_KEY);
+    if(raw) saved = JSON.parse(raw);
+    localStorage.removeItem(UNSENT_KEY);
+  } catch(e){ saved = null; }
+  if(!saved || !saved.jobs || !saved.jobs.length) return 0;
+  var n = 0;
+  for(var i=0;i<saved.jobs.length;i++){
+    var j = saved.jobs[i];
+    if(j && j.action && j.payload){ enqueueSave(j.payload, j.action); n++; }
+  }
+  if(n > 0) resyncAfterRestore = true;
+  return n;
+}
+// 画面が隠れる・閉じられる直前に控える(モバイルでは beforeunload が当てにならない)
+window.addEventListener('pagehide', persistUnsent);
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') persistUnsent(); });
 
 // 未送信(送信待ち+送信中+失敗)の件数
 function unsentCount(){
   return saveQueue.length + failedJobs.length + (saveQueueRunning ? 1 : 0);
 }
 
-// 失敗したジョブを送信待ちへ戻して再開する(自動再試行と「再試行」ボタンから呼ぶ)
-function retryFailedJobs(){
+// 失敗したジョブを送信待ちへ戻して再開する(自動再試行と「再試行」ボタンから呼ぶ)。
+// 自動再試行は恒久エラー(送っても必ず弾かれるもの)を飛ばす。ボタンからは
+// 全部戻す(備考を直した・GASを更新した、のような対処が済んでいることがある)。
+function retryFailedJobs(includePermanent){
   if(failedJobs.length === 0) return;
-  saveQueue = failedJobs.concat(saveQueue);
-  failedJobs = [];
+  var retry = [], keep = [];
+  for(var i=0;i<failedJobs.length;i++){
+    var j = failedJobs[i];
+    if(includePermanent || !j.permanent){ j.permanent = false; retry.push(j); }
+    else keep.push(j);
+  }
+  if(retry.length === 0) return;
+  saveQueue = retry.concat(saveQueue);
+  failedJobs = keep;
+  persistUnsent();
   runSaveQueue();
 }
 
-// 未送信が残っている間は定期的に自動で再送を試みる。
+// 未送信が残っている間は自動で再送を試みる。
 // 同期バーのバッジは点検中スクロールすると視界から外れるため、
 // 利用者が気付いて押すまで永久に未保存、という状態を避ける。
 // 工場のWi-Fiは「つながっているが上流が切れている」ことがあり、
 // ブラウザの online イベントでは復旧を検知できない。
-setInterval(function(){
-  if(failedJobs.length > 0 && !saveQueueRunning) retryFailedJobs();
-}, 60000);
+// 間隔は 60秒 → 2分 → 5分 → 10分 と伸ばし、送信が成功したら 60秒に戻す。
+// 一定間隔で叩き続けると、上流が落ちている間もGASの実行枠を空焼きする。
+var AUTO_RETRY_STEPS = [60, 120, 300, 600];
+var autoRetryStep = 0;
+var autoRetryTimer = null;
+function scheduleAutoRetry(){
+  if(autoRetryTimer) clearTimeout(autoRetryTimer);
+  autoRetryTimer = setTimeout(autoRetryTick, AUTO_RETRY_STEPS[autoRetryStep] * 1000);
+}
+function autoRetryTick(){
+  autoRetryTimer = null;
+  var hasRetriable = false;
+  for(var i=0;i<failedJobs.length;i++){ if(!failedJobs[i].permanent){ hasRetriable = true; break; } }
+  if(hasRetriable && !saveQueueRunning){
+    retryFailedJobs(false);
+    if(autoRetryStep < AUTO_RETRY_STEPS.length-1) autoRetryStep++;
+  }
+  scheduleAutoRetry();
+}
+// 間隔を最初(60秒)に戻す。予約済みの長い待ちも取り消して組み直す。
+// 戻すだけだと、長い通信断から回復した直後の短い断で、次の自動再試行が
+// 最大10分待たされる。
+function resetAutoRetry(){
+  if(autoRetryStep === 0) return;
+  autoRetryStep = 0;
+  scheduleAutoRetry();
+}
+scheduleAutoRetry();
 
 function runSaveQueue(){
   if(saveQueueRunning) return;
   if(saveQueue.length===0){
     if(failedJobs.length > 0){
-      STATE.sync = { state:'error', message:'保存できていません(未送信 '+failedJobs.length+'件)。通信を確認して「再試行」を押してください', at:null };
+      // 送っても通らないことが確定しているものは、通信のせいにせず理由をそのまま出す。
+      // 「通信を確認して」と出すと、備考を短くすれば済む話が現場で切り分けられない。
+      var perm = null;
+      for(var fi=0; fi<failedJobs.length; fi++){ if(failedJobs[fi].permanent){ perm = failedJobs[fi]; break; } }
+      var idleMsg = perm
+        ? '保存できていません(未送信 '+failedJobs.length+'件)。'+perm.lastError
+        : '保存できていません(未送信 '+failedJobs.length+'件)。通信を確認して「再試行」を押してください';
+      STATE.sync = { state:'error', message: idleMsg, at:null };
       updateSyncBar();
     }
     return;
@@ -772,29 +884,46 @@ function runSaveQueue(){
   // 送信中に enqueueSave がキューを作り直したとき、成功時の shift() が
   // 別のジョブを消してしまう。失敗したら先頭へ戻して順序を保つ。
   var job = saveQueue.shift();
+  inflightJob = job;
+  persistUnsent();
   STATE.sync = { state:'syncing', message:'保存中... (残'+ (saveQueue.length+1) +')', at:null }; updateSyncBar();
   callGAS(job.action, job.payload, function(){
     saveQueueRunning = false;
+    inflightJob = null;
+    resetAutoRetry();    // 通信が回復したので、自動再試行の間隔を最初に戻す
+    persistUnsent();
     if(saveQueue.length===0 && failedJobs.length===0){
       STATE.sync = { state:'editing', message:'保存しました', at:timeStr() }; updateSyncBar();
+      // 前回の起動で送れなかった分を送り切ったので、画面をサーバの内容に合わせる。
+      // 利用者が入力を始めていれば読み直さない(入力が消えるため)。
+      if(resyncAfterRestore){
+        resyncAfterRestore = false;
+        if(!pendingData && !saveTimer && !hasPendingIssueSave()) refresh();
+      }
     }
     runSaveQueue();
   }, function(e){
     saveQueueRunning = false;
+    inflightJob = null;
     job.tries++;
+    job.lastError = e.message || '';
     // サーバが受け付けないことが確定しているものは、何度送っても同じなので
-    // 再試行せず即座に保留へ回す(古いGASに新しい操作を送った場合など)。
+    // 再試行せず即座に保留へ回す(古いGASに新しい操作を送った場合、
+    // 送信データが URL の上限を超えている場合など)。
     // 再試行するとキューが数十秒単位で詰まり、後続の保存まで止まってしまう。
-    var permanent = /unknown action|がありません/.test(e.message || '');
+    var permanent = /unknown action|がありません|大きすぎます/.test(e.message || '');
+    if(permanent) job.permanent = true;
     if(permanent || job.tries >= SAVE_MAX_TRIES){
       // 上限まで試しても送れないものは、捨てずに失敗リストへ移して次へ進む
       failedJobs.push(job);
+      persistUnsent();
       STATE.sync = { state:'error', message:'保存失敗: '+e.message+' (未送信 '+failedJobs.length+'件)', at:null }; updateSyncBar();
       runSaveQueue();
       return;
     }
     // 指数バックオフで再試行(2秒→4秒→8秒→16秒)。先頭へ戻すので順序は崩れない。
     saveQueue.unshift(job);
+    persistUnsent();
     var waitSec = Math.pow(2, job.tries);
     STATE.sync = { state:'error', message:'保存失敗: '+e.message+' — '+waitSec+'秒後に再試行 ('+job.tries+'/'+SAVE_MAX_TRIES+')', at:null };
     updateSyncBar();
@@ -1247,6 +1376,18 @@ function clearDay(){
   }
 }
 
+// 送信用の記録を作る。項目のコピー(items: No./場所/側/内容)は送らない。
+// サーバは項目マスタからその4列を書くので、受け取っても読まない。
+// 一方で72項目ぶんの日本語がGETのURLに載ると約29,000文字になり、
+// Googleの受付上限(約16KB)を超えて保存が一切通らなくなる。
+// 画面側の控え(STATE 内の items)はそのまま残す。削除済み項目の
+// 不具合カードを埋めるのに使っている。
+function wireRecord(data){
+  var out = {};
+  for(var k in data){ if(k !== 'items') out[k] = data[k]; }
+  return out;
+}
+
 // 保存スケジュール(debounce)。画面再描画はしない。
 // 設備ID・日付は pendingData に「予約した時点」の値を控え、発火時の STATE は読まない。
 // 切替時は flushSave() がこの控えを送るので、点検記録が別設備へ混入することはない。
@@ -1254,7 +1395,7 @@ function scheduleSave(dateKey, data){
   if(!isGasConfigured){ return; }
   STATE.sync = { state:'syncing', message:'保存待機中...', at:null };
   updateSyncBar();
-  pendingData = { machineId: STATE.machineId, date: dateKey, data: data };
+  pendingData = { machineId: STATE.machineId, date: dateKey, data: wireRecord(data) };
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(function(){
     // 発火したタイマーは必ず手放す。ここを残すと saveTimer が真のままになり、
@@ -1307,6 +1448,7 @@ function cancelIssueSave(issueId){
   };
   saveQueue = saveQueue.filter(notThisIssue);
   failedJobs = failedJobs.filter(notThisIssue);
+  persistUnsent();
 }
 
 // 予約中の不具合保存をすべて即送信する(設備・画面の切替前に呼ぶ)。
@@ -2552,7 +2694,7 @@ function buildPrintArea(){
 // ============================================================
 function attachSyncHandlers(){
   if(el('btn-refresh')) el('btn-refresh').onclick = refresh;
-  if(el('btn-retry-save')) el('btn-retry-save').onclick = retryFailedJobs;
+  if(el('btn-retry-save')) el('btn-retry-save').onclick = function(){ resetAutoRetry(); retryFailedJobs(true); };
   if(el('btn-editmode')) el('btn-editmode').onclick = toggleEditMode;
 }
 function attachHandlers(){
@@ -2695,6 +2837,8 @@ function initScrollTop(){
 try { initScrollTop(); } catch(e){}
 
 try {
+  // 前回閉じたときに送れなかった分があれば、先に送信を始める
+  if(isGasConfigured) restoreUnsent();
   refresh();
 } catch(e){
   showFatalError('アプリ起動失敗', e.message + '\n' + (e.stack||''));
