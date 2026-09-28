@@ -2290,52 +2290,317 @@ function openPointHist(itemId){
 }
 
 // ============================================================
-// 分析ヘルパー(判定の時系列集計)
+// 分析の土台: × の「発生」
 // ============================================================
-function _judgeDates(judge){
-  var records = getRecords(); var map = {};
-  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; for(var id in r.results){ if(r.results[id]===judge){ (map[id]=map[id]||[]).push(d); } } }
-  for(var k in map){ map[k].sort(); }
-  return map;
-}
-function _dayDiff(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
-function _consolidate(dates, gap){
-  if(!dates||dates.length===0) return [];
-  var s = dates.slice().sort(); var out=[s[0]]; var last=s[0];
-  for(var i=1;i<s.length;i++){ if(_dayDiff(last,s[i])>gap){ out.push(s[i]); } last=s[i]; }
-  return out;
-}
-function computeRecurrence(){
-  var nm=_judgeDates('ng'); var items=getItems(); var out=[]; var today=todayStr();
-  for(var id in nm){
-    var inc=_consolidate(nm[id],1);
-    if(inc.length<3) continue;
-    var t0=inc[0]; var T=_dayDiff(t0,today); if(T<=0) T=_dayDiff(t0,inc[inc.length-1])||1;
-    var n=inc.length;
-    var sumt=0; inc.forEach(function(d){ sumt += _dayDiff(t0,d); });
-    var U=(sumt - n*T/2)/(T*Math.sqrt(n/12));
-    var gaps=[]; for(var i=1;i<inc.length;i++){ gaps.push(_dayDiff(inc[i-1],inc[i])); }
-    var avgGap = gaps.reduce(function(a,b){return a+b;},0)/gaps.length;
-    var it=null; for(var k=0;k<items.length;k++){ if(items[k].id===id){ it=items[k]; break; } }
-    var trend = U>1.96 ? 'up' : U<-1.96 ? 'down' : 'flat';
-    out.push({ itemId:id, it:it, count:n, avgGap:Math.round(avgGap), lastDate:inc[inc.length-1], U:U, trend:trend });
+// 直していない不具合には、点検のたびに × が付き続ける。
+// × が付いた日数をそのまま数えると、1件の未修理が何十回にも数えられてしまう。
+// そこで項目ごとに判定を日付順に並べ、○ から × に変わった時点を「1件の発生」とする。
+//
+//  ・続いているかどうかは、暦日ではなく「点検記録の並び」で判断する。
+//    週末をはさむ金曜と月曜の ×、週1点検で毎週続く × は、間に ○ が無ければ同じ1件。
+//  ・その項目に判定が入っていない日(点検していない日)は並びに含めない。
+//  ・最後の判定が × のままの発生は「未修理」(open: true)とする。
+
+// 項目ごとの点検の履歴をまとめる。戻り値は { 項目id: 履歴 } で、履歴は次のとおり。
+//   judgedDates: 判定(○か×)が入っている日付(古い順)
+//   firstDate:   最初に判定が入った日
+//   lastDate:    最後に判定が入った日
+//   ngDays:      × が付いた日数
+//   episodes:    発生の一覧。各要素は
+//                { start: 発生日, end: 最後に×が付いた日, ngDays: その発生で×が付いた日数, open: 未修理か }
+function buildItemHistories(records){
+  var histories = {};
+  var dates = Object.keys(records).sort();   // "YYYY-MM-DD" は文字列の並びがそのまま日付順
+  for(var i=0; i<dates.length; i++){
+    var date = dates[i];
+    var rec = records[date];
+    if(!rec || !rec.results) continue;
+    for(var itemId in rec.results){
+      var judge = rec.results[itemId];
+      if(judge !== 'ok' && judge !== 'ng') continue;
+
+      var h = histories[itemId];
+      if(!h){
+        h = { judgedDates: [], firstDate: date, lastDate: date, ngDays: 0, episodes: [] };
+        histories[itemId] = h;
+      }
+      h.judgedDates.push(date);
+      h.lastDate = date;
+
+      var latest = h.episodes.length ? h.episodes[h.episodes.length - 1] : null;
+      var stillOpen = !!(latest && latest.open);
+      if(judge === 'ng'){
+        h.ngDays++;
+        if(stillOpen){
+          // 前回の点検から × が続いている = 同じ不具合がまだ直っていない
+          latest.end = date;
+          latest.ngDays++;
+        } else {
+          // ○ のあと(または初めて)の × = 新しい発生
+          h.episodes.push({ start: date, end: date, ngDays: 1, open: true });
+        }
+      } else if(stillOpen){
+        // ○ に戻ったので、この発生はここで終わり
+        latest.open = false;
+      }
+    }
   }
-  out.sort(function(a,b){ var order={up:0,flat:1,down:2}; if(order[a.trend]!==order[b.trend]) return order[a.trend]-order[b.trend]; return b.count-a.count; });
+  return histories;
+}
+
+// 項目管理から削除された項目の、点検時点の内容({ no, place, side, content })を記録から探す。
+// 記録には点検時点の項目のコピーが残っている(新しい記録から順に探す)。見つからなければ null。
+function findItemSnapshot(records, itemId){
+  var dates = Object.keys(records).sort().reverse();
+  for(var i=0; i<dates.length; i++){
+    var rec = records[dates[i]];
+    if(rec && rec.items && rec.items[itemId]) return rec.items[itemId];
+  }
+  return null;
+}
+
+// 2つの日付("YYYY-MM-DD")の間の日数。to が後なら正の数。
+function daysBetween(fromDate, toDate){
+  return Math.round((new Date(toDate + 'T00:00:00') - new Date(fromDate + 'T00:00:00')) / 86400000);
+}
+
+// 年月("YYYY-MM")を fromYm から toYm まで1か月ずつ並べる(両端を含む)
+function monthRange(fromYm, toYm){
+  var months = [];
+  var year = Number(fromYm.substring(0,4));
+  var month = Number(fromYm.substring(5,7));
+  while(true){
+    var ym = year + '-' + pad(month);
+    if(ym > toYm) break;
+    months.push(ym);
+    month++;
+    if(month > 12){ month = 1; year++; }
+  }
+  return months;
+}
+
+// 分析で横軸に使う月の並び。記録のある最初の月から今月まで(発生0件の月も含める)。
+// 0件の月を省くと、棒やマスが詰まって、何も起きなかった期間が見えなくなる。
+function analysisMonths(records){
+  var dates = Object.keys(records).sort();
+  if(dates.length === 0) return [];
+  var firstYm = dates[0].substring(0,7);
+  var lastYm = todayStr().substring(0,7);
+  var lastRecordYm = dates[dates.length - 1].substring(0,7);
+  if(lastRecordYm > lastYm) lastYm = lastRecordYm;
+  return monthRange(firstYm, lastYm);
+}
+
+// 月ごとの「新たな発生」の件数。[{ ym: "YYYY-MM", count: 件数 }, ...]
+function countEpisodesByMonth(histories, months){
+  var counts = {};
+  for(var itemId in histories){
+    histories[itemId].episodes.forEach(function(ep){
+      var ym = ep.start.substring(0,7);
+      counts[ym] = (counts[ym] || 0) + 1;
+    });
+  }
+  return months.map(function(ym){ return { ym: ym, count: counts[ym] || 0 }; });
+}
+
+// 場所 × 月 ごとの「新たな発生」の件数。
+// 戻り値: { months: 年月の並び, places: 発生のあった場所(五十音順), cell: { "場所|年月": 件数 } }
+function countEpisodesByPlaceAndMonth(histories, items, months){
+  var placeOf = {};
+  items.forEach(function(it){ placeOf[it.id] = it.place || '(未設定)'; });
+  var cell = {}, placeSeen = {};
+  for(var itemId in histories){
+    var place = placeOf[itemId] || '(未設定)';
+    histories[itemId].episodes.forEach(function(ep){
+      var key = place + '|' + ep.start.substring(0,7);
+      cell[key] = (cell[key] || 0) + 1;
+      placeSeen[place] = true;
+    });
+  }
+  return { months: months, places: Object.keys(placeSeen).sort(), cell: cell };
+}
+
+// ============================================================
+// 点検実施率
+// ============================================================
+// 分母は「点検すべきだった日(週)」の数、分子はそのうち実際に点検した数。
+//  ・NID(毎日点検)は日、仕込み(週1点検)は週を単位にする。
+//    月の日数を分母にすると、週1点検の設備は実施していても2割程度に見えてしまう。
+//  ・土日は休みとして分母に入れない。ただし土日でも点検した日は、分子・分母の両方に数える。
+//    (以前は土日も分母に入れていたため、全営業日に点検しても76%のように低く出ていた)
+//    週単位では、平日を1日も含まない週(月初や月末の土日だけの週)を同じように扱う。
+//  ・まだ来ていない日・週は分母に入れない(進行中の月で、月初ほど低く出るのを防ぐ)。
+//  ・点検の記録がある日は、土日でも・まだ来ていない日付でも、必ず分子・分母に数える。
+//  ※ 平日の祝日は、いまは「点検すべき日」として数える。除くには稼働日カレンダーが要る。
+
+function isWeekday(date){
+  var dayOfWeek = new Date(date + 'T00:00:00').getDay();   // 0=日曜 … 6=土曜
+  return dayOfWeek !== 0 && dayOfWeek !== 6;
+}
+
+// その日に判定が1件でも入っているか(= 点検したか)
+function hasJudgment(rec){
+  return !!(rec && rec.results && Object.keys(rec.results).length > 0);
+}
+
+// 戻り値: { done: 点検した数, due: 点検すべきだった数, rate: 実施率(%), unit: '日' か '週' }
+function computeInspectionRate(machineId, ym, records){
+  var today = todayStr();
+  var due = 0, done = 0;
+  getMonthColumns(machineId, ym).forEach(function(col){
+    var inspected = col.dates.some(function(d){ return hasJudgment(records[d]); });
+    if(inspected){                                            // 点検した日・週は常に数える
+      due++;
+      done++;
+      return;
+    }
+    var notYet = col.dates[0] > today;                        // まだ来ていない日・週
+    var includesWeekday = col.dates.some(isWeekday);          // 土日だけの日・週は休み
+    if(!notYet && includesWeekday) due++;                     // 点検すべきだったのに、していない
+  });
+  return {
+    done: done,
+    due: due,
+    rate: due ? Math.round(done / due * 100) : 0,
+    unit: machineId === 'shikomi' ? '週' : '日'
+  };
+}
+
+// ============================================================
+// 未完了の不具合の滞留日数
+// ============================================================
+// 発生からの経過日数で4つに区分けする。色は画面の一覧とそろえる。
+var AGE_BUCKETS = [
+  { label: '0〜7日',   from: 0,  to: 7,        color: 'var(--c-text2)' },
+  { label: '8〜30日',  from: 8,  to: 30,       color: 'var(--c-warn)' },
+  { label: '31〜90日', from: 31, to: 90,       color: 'var(--c-danger)' },
+  { label: '91日以上', from: 91, to: Infinity, color: 'var(--c-danger)' }
+];
+
+// 経過日数がどの区分に入るか
+function ageBucketOf(days){
+  for(var i=0; i<AGE_BUCKETS.length; i++){
+    if(days >= AGE_BUCKETS[i].from && days <= AGE_BUCKETS[i].to) return AGE_BUCKETS[i];
+  }
+  return AGE_BUCKETS[0];
+}
+
+// 区分ごとの件数。openIssues は [{ is: 不具合, days: 経過日数 }, ...]
+// 戻り値: [{ label, color, count }, ...](AGE_BUCKETS と同じ並び)
+function countOpenIssuesByAge(openIssues){
+  return AGE_BUCKETS.map(function(bucket){
+    var count = openIssues.filter(function(o){ return ageBucketOf(o.days) === bucket; }).length;
+    return { label: bucket.label, color: bucket.color, count: count };
+  });
+}
+
+// 日付("YYYY-MM-DD")を days 日ずらす(負の数なら前へ)
+function shiftDate(date, days){
+  var d = new Date(date + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+// ============================================================
+// 再発の傾向
+// ============================================================
+// 【Laplace検定】発生が時間とともに増えているか(悪化)・減っているか(改善)を判定する。
+//   観測期間は「その項目を最初に点検した日」から「最後に点検した日」まで。
+//   以前は最初の × を起点にしていたため、それまでの無事故期間が捨てられ、
+//   「長く無事故だったのに急に増えた」という一番大事な悪化を見逃していた。
+//   発生が少ないうちは検定に意味がないので、5件未満は「判定保留」とする。
+// 【直近30日の急増】その項目の全発生のうち、直近30日に起きた割合が、
+//   直近30日の点検回数の割合から見て偶然とは言いにくいほど高いかを判定する(二項検定)。
+//   それまでのペースを「推定値」ではなく発生の総数で条件づけて比べるので、
+//   発生の少ない項目でも誤警報が増えにくい。新しく起き始めた不具合をすぐに拾える。
+
+var TREND_MIN_EPISODES = 5;          // これ未満の発生数では傾向を判定しない
+var TREND_Z = 1.96;                  // 両側5%の境目
+var SURGE_WINDOW_DAYS = 30;          // 「直近」とみなす日数
+var SURGE_MIN_EPISODES = 2;          // 直近の発生がこれ未満なら急増とはみなさない
+var SURGE_MIN_PAST_INSPECTIONS = 10; // それ以前の点検がこれ未満なら、比べる材料が足りない
+var SURGE_P = 0.05;                  // これより起こりにくければ「急増」
+
+// Laplace検定。戻り値: { trend: 'up'(悪化) | 'flat'(横ばい) | 'down'(改善) | 'hold'(判定保留), U: 検定統計量 }
+function laplaceTrend(h){
+  var T = daysBetween(h.firstDate, h.lastDate);          // 観測期間の長さ(日)
+  var times = h.episodes.map(function(ep){ return daysBetween(h.firstDate, ep.start); });
+  // 最後の点検日にちょうど新しい発生が始まった場合は、その発生で観測を打ち切ったとみなして
+  // 最後の1件を除く(故障打切り)。含めると、その1件が必ず期間の端に来て悪化側に偏る。
+  if(times.length > 0 && times[times.length-1] === T) times.pop();
+  var n = times.length;
+  if(n < TREND_MIN_EPISODES || T <= 0) return { trend: 'hold', U: null };
+
+  var sum = times.reduce(function(a, b){ return a + b; }, 0);
+  // 傾向がなければ、発生時刻の平均は期間の真ん中(T/2)あたりに来る。
+  // 後ろに寄っていれば悪化、前に寄っていれば改善。
+  var U = (sum / n - T / 2) / (T * Math.sqrt(1 / (12 * n)));
+  var trend = 'flat';
+  if(U > TREND_Z) trend = 'up';
+  else if(U < -TREND_Z) trend = 'down';
+  return { trend: trend, U: U };
+}
+
+// 二項分布で、n 回の試行で確率 q の事象が k 回以上起きる確率
+function binomialAtLeast(k, n, q){
+  if(k <= 0) return 1;
+  if(k > n) return 0;
+  var term = Math.pow(1 - q, n);       // 0回の確率
+  var below = 0;                       // k 回未満の確率の合計
+  for(var i=0; i<k; i++){
+    below += term;
+    term = term * (n - i) / (i + 1) * q / (1 - q);   // i回 → i+1回の確率
+  }
+  return Math.max(0, 1 - below);
+}
+
+// 直近30日の急増。戻り値: { surge: 急増か, recent: 直近の発生数 }
+function recentSurge(h, today){
+  var windowStart = shiftDate(today, -(SURGE_WINDOW_DAYS - 1));
+  var recentInspections = h.judgedDates.filter(function(d){ return d >= windowStart; }).length;
+  var pastInspections = h.judgedDates.length - recentInspections;
+  var recent = h.episodes.filter(function(ep){ return ep.start >= windowStart; }).length;
+  var total = h.episodes.length;
+  if(recent < SURGE_MIN_EPISODES || pastInspections < SURGE_MIN_PAST_INSPECTIONS){
+    return { surge: false, recent: recent };
+  }
+  // 発生の起きやすさが一定なら、全発生のうち直近に入る割合は、点検回数の割合(share)と同じになるはず
+  var share = recentInspections / h.judgedDates.length;
+  return { surge: binomialAtLeast(recent, total, share) < SURGE_P, recent: recent };
+}
+
+// 再発した項目(発生2件以上)の一覧。注意が必要な項目(悪化・急増)を先に、あとは発生の多い順。
+function computeRecurrence(histories){
+  var items = getItems();
+  var today = todayStr();
+  var out = [];
+  for(var id in histories){
+    var h = histories[id];
+    if(h.episodes.length < 2) continue;
+    var it = null;
+    for(var k=0; k<items.length; k++){ if(items[k].id === id){ it = items[k]; break; } }
+    var laplace = laplaceTrend(h);
+    var surge = recentSurge(h, today);
+    var last = h.episodes[h.episodes.length - 1];
+    // 平均間隔は「観測した日数 ÷ 発生数」。発生と発生の間の平均では、
+    // 最初の発生までと最後の発生以降の無事故期間が抜けて、短く出てしまう。
+    var observedDays = daysBetween(h.firstDate, h.lastDate) + 1;
+    out.push({
+      itemId: id, it: it,
+      count: h.episodes.length,
+      daysPerEpisode: Math.round(observedDays / h.episodes.length),
+      lastStart: last.start, lastOpen: last.open,
+      trend: laplace.trend, U: laplace.U,
+      surge: surge.surge
+    });
+  }
+  out.sort(function(a, b){
+    var warnA = (a.surge || a.trend === 'up') ? 1 : 0;
+    var warnB = (b.surge || b.trend === 'up') ? 1 : 0;
+    if(warnA !== warnB) return warnB - warnA;
+    return b.count - a.count;
+  });
   return out;
-}
-function computeMonthlyNG(){
-  var records=getRecords(); var map={};
-  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; var ym=d.substring(0,7); for(var id in r.results){ if(r.results[id]==='ng'){ map[ym]=(map[ym]||0)+1; } } }
-  var months=Object.keys(map).sort();
-  return months.map(function(m){ return { ym:m, count:map[m] }; });
-}
-function computeHeatmap(){
-  var records=getRecords(); var items=getItems();
-  var placeOf={}; items.forEach(function(it){ placeOf[it.id]=it.place||'(未設定)'; });
-  var monthsSet={}, placesSet={}; var cell={};
-  for(var d in records){ var r=records[d]; if(!r||!r.results) continue; var ym=d.substring(0,7); for(var id in r.results){ if(r.results[id]==='ng'){ var pl=placeOf[id]||'(未設定)'; monthsSet[ym]=1; placesSet[pl]=1; var key=pl+'|'+ym; cell[key]=(cell[key]||0)+1; } } }
-  var months=Object.keys(monthsSet).sort(); var places=Object.keys(placesSet).sort();
-  return { months:months, places:places, cell:cell };
 }
 
 
@@ -2345,51 +2610,29 @@ function renderAnalysis(){
   var records = getRecords();
   var issues = getIssues();
 
-  // 項目別NG発生回数(全期間)
-  var ngCount = {};
-  for(var d in records){
-    var rec = records[d];
-    if(!rec || !rec.results) continue;
-    for(var itemId in rec.results){
-      if(rec.results[itemId]==='ng'){ ngCount[itemId] = (ngCount[itemId]||0) + 1; }
-    }
-  }
+  // 項目ごとの点検履歴と × の発生(分析はすべてこれを元に数える)
+  var histories = buildItemHistories(records);
+  var months = analysisMonths(records);
+
+  // 項目別の発生回数(全期間)。直らずに × が続いた日は1回として数える。
   var ranking = [];
   items.forEach(function(it){
-    var c = ngCount[it.id] || 0;
-    if(c>0) ranking.push({ no:it.no, place:it.place, side:it.side, content:it.content, count:c });
+    var h = histories[it.id];
+    if(!h || h.episodes.length === 0) return;
+    ranking.push({ no:it.no, place:it.place, side:it.side, content:it.content,
+                   count: h.episodes.length, ngDays: h.ngDays });
   });
-  ranking.sort(function(a,b){ return b.count - a.count; });
+  // 発生回数の多い順。同じ回数なら × が付いた日数の多い順。
+  ranking.sort(function(a,b){ return (b.count - a.count) || (b.ngDays - a.ngDays); });
 
   // 長期未対応の不具合(未完了を経過日数の多い順)
   var openIssues = getIssues().filter(function(is){ return is.status!=='完了'; })
     .map(function(is){ return { is:is, days:daysSince(is.date) }; })
     .sort(function(a,b){ return b.days - a.days; });
 
-  // 当月の点検実施率。分母は設備の点検周期に合わせる。
-  // NID(毎日点検)は日数、仕込み(週1点検)は週数。月の日数を分母にすると
-  // 週1点検の設備はきちんと実施していても常に2割程度に見えてしまう。
+  // 当月の点検実施率
   var ym = STATE.printMonth;
-  var rateCols = getMonthColumns(STATE.machineId, ym);
-  var rateUnit = (STATE.machineId === 'shikomi') ? '週' : '日';
-  // 進行中の月では、まだ来ていない日・週を分母に入れない。
-  // 入れると月初ほど実施率が低く出て、実態を表さない。
-  var today = todayStr();
-  if(ym === today.substring(0,7)){
-    rateCols = rateCols.filter(function(c){ return c.dates[0] <= today; });
-  }
-  var daysM = rateCols.length;
-  var doneDays = 0;
-  for(var ci=0; ci<rateCols.length; ci++){
-    var col = rateCols[ci];
-    var colDone = false;
-    for(var di=0; di<col.dates.length; di++){
-      var r = records[col.dates[di]];
-      if(r && r.results && Object.keys(r.results).length>0){ colDone = true; break; }
-    }
-    if(colDone) doneDays++;
-  }
-  var rate = daysM ? Math.round(doneDays/daysM*100) : 0;
+  var inspection = computeInspectionRate(STATE.machineId, ym, records);
 
   var h = '';
   h += '<div style="padding:14px;background:var(--c-bg2);border-radius:var(--r-lg);margin-bottom:14px;font-size:14px;color:var(--c-text2)">';
@@ -2397,15 +2640,18 @@ function renderAnalysis(){
   h += '</div>';
 
   // 当月実施率カード
-  var rateColor = rate>=90?'var(--c-success)':rate>=60?'var(--c-warn)':'var(--c-danger)';
+  var rate = inspection.rate;
+  var rateColor = rate>=90 ? 'var(--c-success)' : rate>=60 ? 'var(--c-warn)' : 'var(--c-danger)';
   h += '<div class="analysis-card">';
   h += '<div class="analysis-title">📅 '+esc(ym.split('-')[1])+'月の点検実施率</div>';
   h += '<div style="display:flex;align-items:center;gap:14px">';
   h += '<div style="font-size:34px;font-weight:600;color:'+rateColor+'">'+rate+'%</div>';
   h += '<div style="flex:1">';
-  h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:4px">'+doneDays+' / '+daysM+' '+rateUnit+' 実施</div>';
+  h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:4px">'+inspection.done+' / '+inspection.due+' '+inspection.unit+' 実施</div>';
   h += '<div class="progress-bar" style="margin:0"><div class="progress-fill" style="width:'+rate+'%;background:'+rateColor+'"></div></div>';
-  h += '</div></div></div>';
+  h += '</div></div>';
+  h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">※ 土日は、点検した日だけを数えています。平日の祝日は点検すべき日として数えます。</div>';
+  h += '</div>';
 
   // 長期未対応アラート
   h += '<div class="analysis-card">';
@@ -2413,10 +2659,19 @@ function renderAnalysis(){
   if(openIssues.length===0){
     h += '<div style="font-size:13px;color:var(--c-text2)">未解決の不具合はありません 👍</div>';
   } else {
+    // 未完了の全件を、発生からの経過日数で区分けした件数(上位5件だけでは全体の滞留が見えないため)
+    h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">';
+    countOpenIssuesByAge(openIssues).forEach(function(b){
+      h += '<div style="border:1px solid var(--c-bd);border-radius:var(--r-md);padding:6px 4px;text-align:center">';
+      h += '<div style="font-size:11px;color:var(--c-text3)">'+b.label+'</div>';
+      h += '<div style="font-size:20px;font-weight:600;color:'+(b.count ? b.color : 'var(--c-text3)')+'">'+b.count+'件</div>';
+      h += '</div>';
+    });
+    h += '</div>';
     var topOpen = openIssues.slice(0,5);
     topOpen.forEach(function(o){
       var is = o.is;
-      var col = o.days>=30?'var(--c-danger)':o.days>=14?'var(--c-warn)':'var(--c-text2)';
+      var col = ageBucketOf(o.days).color;
       h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--c-bd)">';
       h += '<div style="min-width:64px;font-size:18px;font-weight:600;color:'+col+'">'+o.days+'日</div>';
       h += '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--c-text2)">'+esc(is.place)+(is.side?' / '+esc(is.side):'')+' ・ No.'+esc(is.no)+'</div>';
@@ -2443,52 +2698,89 @@ function renderAnalysis(){
       h += '<span style="font-weight:600;color:var(--c-danger)">'+r.count+'回</span>';
       h += '</div>';
       h += '<div style="height:14px;background:var(--c-bg3);border-radius:7px;overflow:hidden"><div style="height:100%;width:'+w+'%;background:var(--c-danger);border-radius:7px"></div></div>';
-      h += '<div style="font-size:11px;color:var(--c-text3);margin-top:2px">'+esc(r.content)+'</div>';
+      h += '<div style="font-size:11px;color:var(--c-text3);margin-top:2px">'+esc(r.content)+' ・ ×が付いた日 '+r.ngDays+'日</div>';
       h += '</div>';
     });
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">※ 直らずに×が続いた日は、まとめて1回と数えています</div>';
   }
   h += '</div>';
 
   // ============ 追加分析(再発・ヒートマップ) ============
   // ② 再発間隔 + Laplace傾向
-  var rec = computeRecurrence();
+  var rec = computeRecurrence(histories);
   h += '<div class="analysis-card">';
   h += '<div class="analysis-title">🔁 再発間隔と傾向(Laplace検定)</div>';
-  if(rec.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">3回以上NGが出た箇所がまだありません。</div>'; }
+  if(rec.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">2回以上NGが出た箇所がまだありません。</div>'; }
   else {
-    var trendLabel={up:'⚠ 悪化(頻発化)',flat:'→ 横ばい',down:'✓ 改善(疎化)'};
-    var trendColor={up:'var(--c-danger)',flat:'var(--c-text2)',down:'var(--c-success)'};
+    var trendLabel = {
+      up:   '⚠ 悪化(頻発化)',
+      flat: '→ 横ばい',
+      down: '✓ 改善(間隔が開いている)',
+      hold: '… 判定保留(発生'+TREND_MIN_EPISODES+'回未満)'
+    };
+    var trendColor = { up:'var(--c-danger)', flat:'var(--c-text2)', down:'var(--c-success)', hold:'var(--c-text3)' };
     rec.slice(0,10).forEach(function(r){
+      // 同じ場所に点検項目が複数あるので、No. と点検内容まで出して区別できるようにする
+      // 項目管理から削除された項目は、記録に残っている点検時点の内容で表示する
+      var item = r.it || findItemSnapshot(records, r.itemId);
+      var label, content = '';
+      if(item){
+        label = 'No.' + esc(item.no) + ' ' + esc(item.place) + (item.side ? ' ('+esc(item.side)+')' : '');
+        content = esc(item.content) + (r.it ? '' : '(削除済みの項目)');
+      } else {
+        label = esc(r.itemId) + '(削除済みの項目)';
+      }
       h += '<div style="padding:8px 0;border-bottom:1px solid var(--c-bd)">';
-      h += '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>'+(r.it?esc(r.it.place)+(r.it.side?' ('+esc(r.it.side)+')':''):esc(r.itemId))+'</span><span style="color:'+trendColor[r.trend]+';font-weight:600;white-space:nowrap">'+trendLabel[r.trend]+'</span></div>';
-      h += '<div style="font-size:11px;color:var(--c-text3);margin-top:2px">'+r.count+'回 ・ 平均間隔 '+r.avgGap+'日 ・ 直近 '+esc(r.lastDate)+'</div>';
+      h += '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px">';
+      h += '<span>'+label+(content ? '<br><span style="font-size:12px;color:var(--c-text2)">'+content+'</span>' : '')+'</span>';
+      h += '<span style="text-align:right">';
+      if(r.surge) h += '<span style="color:var(--c-danger);font-weight:600;white-space:nowrap">⚠ 直近'+SURGE_WINDOW_DAYS+'日で急増</span><br>';
+      h += '<span style="color:'+trendColor[r.trend]+';font-weight:600;white-space:nowrap">'+trendLabel[r.trend]+'</span>';
+      h += '</span></div>';
+      h += '<div style="font-size:11px;color:var(--c-text3);margin-top:2px">発生 '+r.count+'回 ・ およそ'+r.daysPerEpisode+'日に1回 ・ 直近の発生 '+esc(r.lastStart)+(r.lastOpen?'(未修理)':'')+'</div>';
       h += '</div>';
     });
-    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">※ Laplace検定: 発生が時間とともに頻発化(悪化)/疎化(改善)しているかの統計判定</div>';
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">※ 傾向は、その箇所を点検し始めた日から最後の点検日までに、発生が後ろに偏っているか(悪化)・前に偏っているか(改善)で判定しています(Laplace検定)。発生が'+TREND_MIN_EPISODES+'回未満の箇所は判定を保留します。<br>※「直近'+SURGE_WINDOW_DAYS+'日で急増」は、それまでのペースから見て、直近'+SURGE_WINDOW_DAYS+'日の発生が明らかに多い箇所です。</div>';
   }
   h += '</div>';
 
-  // ⑤ NG回数 月次推移
-  var mng = computeMonthlyNG();
+  // ⑤ 月ごとの新たな発生件数
+  var mng = countEpisodesByMonth(histories, months);
+  var totalEpisodes = mng.reduce(function(sum, x){ return sum + x.count; }, 0);
   h += '<div class="analysis-card">';
   h += '<div class="analysis-title">📉 NG発生数の月次推移</div>';
-  if(mng.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
+  if(totalEpisodes===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
   else {
-    var maxm=Math.max.apply(null, mng.map(function(x){return x.count;}));
-    var bw=Math.min(56, Math.max(18, Math.floor(560/mng.length)-6));
-    var chartH=120;
-    h += '<svg viewBox="0 0 '+(mng.length*(bw+6)+10)+' '+(chartH+28)+'" width="'+(mng.length*(bw+6)+10)+'" style="max-width:100%;height:auto;max-height:170px;display:block">';
-    mng.forEach(function(x,i){ var bh=maxm?Math.round(x.count/maxm*chartH):0; var bx=10+i*(bw+6); var by=chartH-bh+4;
-      h += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="3" fill="var(--c-danger)"></rect>';
-      h += '<text x="'+(bx+bw/2)+'" y="'+(by-3)+'" text-anchor="middle" font-size="11" fill="var(--c-text2)">'+x.count+'</text>';
-      h += '<text x="'+(bx+bw/2)+'" y="'+(chartH+18)+'" text-anchor="middle" font-size="9" fill="var(--c-text3)">'+esc(x.ym.substring(2))+'</text>';
+    // 棒グラフの寸法(SVG内の座標)。上から「件数ラベルの余白」「棒」「年月ラベルの余白」。
+    // 件数ラベルは棒の上に描くので、一番高い棒でもラベルが枠の外に出ないよう上に余白を取る。
+    var LABEL_SPACE = 16;     // 件数ラベル(文字の高さ11)用
+    var BAR_AREA = 120;       // 棒の最大の高さ
+    var AXIS_SPACE = 20;      // 年月ラベル用
+    var GAP = 6;              // 棒と棒の間
+    var LEFT = 10;
+    var maxCount = Math.max.apply(null, mng.map(function(x){ return x.count; }));
+    var barW = Math.min(56, Math.max(18, Math.floor(560 / mng.length) - GAP));
+    var svgW = LEFT + mng.length * (barW + GAP);
+    var svgH = LABEL_SPACE + BAR_AREA + AXIS_SPACE;
+    h += '<svg viewBox="0 0 '+svgW+' '+svgH+'" width="'+svgW+'" style="max-width:100%;height:auto;max-height:170px;display:block">';
+    mng.forEach(function(x, i){
+      var barH = maxCount ? Math.round(x.count / maxCount * BAR_AREA) : 0;
+      var barX = LEFT + i * (barW + GAP);
+      var barTop = LABEL_SPACE + (BAR_AREA - barH);
+      var centerX = barX + barW / 2;
+      h += '<rect x="'+barX+'" y="'+barTop+'" width="'+barW+'" height="'+barH+'" rx="3" fill="var(--c-danger)"></rect>';
+      h += '<text x="'+centerX+'" y="'+(barTop - 3)+'" text-anchor="middle" font-size="11" fill="var(--c-text2)">'+x.count+'</text>';
+      h += '<text x="'+centerX+'" y="'+(LABEL_SPACE + BAR_AREA + 14)+'" text-anchor="middle" font-size="9" fill="var(--c-text3)">'+esc(x.ym.substring(2))+'</text>';
     });
     h += '</svg>';
+    var monthNote = '※ その月に新たに×になった件数です(×が続いた日は数えません)';
+    if(mng[mng.length - 1].ym === todayStr().substring(0,7)) monthNote += '。今月は今日までの件数です';
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">'+monthNote+'</div>';
   }
   h += '</div>';
 
   // ③ 場所×月 NGヒートマップ(設備内)
-  var hm = computeHeatmap();
+  var hm = countEpisodesByPlaceAndMonth(histories, items, months);
   h += '<div class="analysis-card">';
   h += '<div class="analysis-title">🗺 場所×月 NGヒートマップ('+esc(m.name)+')</div>';
   if(hm.places.length===0){ h += '<div style="font-size:13px;color:var(--c-text2)">まだNGの記録がありません。</div>'; }
@@ -2505,7 +2797,7 @@ function renderAnalysis(){
       h += '</tr>';
     });
     h += '</table></div>';
-    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">色が濃いほどNG多発。設備('+esc(m.name)+')内の箇所×月で集計しています。</div>';
+    h += '<div style="font-size:11px;color:var(--c-text3);margin-top:6px">色が濃いほどNG多発。設備('+esc(m.name)+')内の箇所×月で、新たに×になった件数を集計しています。</div>';
   }
   h += '</div>';
 
