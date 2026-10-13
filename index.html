@@ -93,6 +93,43 @@
   .ng-note { grid-column: 1 / -1; margin-top: 8px; padding: 10px; background: var(--c-bg); border: 1px solid var(--c-danger-bd); border-radius: var(--r-md); }
   .ng-note textarea { width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid var(--c-bd); border-radius: var(--r-md); font-size: 14px; font-family: var(--font); background: var(--c-bg); color: var(--c-text); box-sizing: border-box; resize: vertical; }
 
+  /* 対策: 点検行のボタンと、× の行に出す要約 */
+  .cm-line { margin-top: 8px; }
+  .cm-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; font-size: 13px; font-weight: 500; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text2); cursor: pointer; font-family: var(--font); }
+  .cm-btn.has { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
+  .cm-btn.none { color: var(--c-text3); border-style: dashed; font-weight: 400; }
+  .check-row.is-ng .cm-btn.has { background: var(--c-info); color: #fff; border-color: var(--c-info); }
+  .cm-count { font-size: 12px; font-weight: 400; }
+  .cm-hint { margin-bottom: 8px; padding: 8px 10px; background: var(--c-info-bg); border: 1px solid var(--c-info-bd); border-radius: var(--r-md); cursor: pointer; }
+  .cm-hint-head { font-size: 12px; font-weight: 500; color: var(--c-info); margin-bottom: 2px; }
+  .cm-hint-text { font-size: 14px; color: var(--c-text); line-height: 1.5; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* 対策: ダイアログ */
+  .cm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+  .cm-head-content { font-size: 14px; margin-top: 2px; color: var(--c-text2); word-break: break-word; }
+  .cm-head > .btn { flex-shrink: 0; white-space: nowrap; }
+  .cm-text-view { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.7; padding: 12px; background: var(--c-bg2); border-radius: var(--r-md); margin-bottom: 12px; }
+  .cm-modal textarea#cm-text { min-height: 140px; resize: vertical; }
+  .cm-modal select { width: 100%; height: 44px; padding: 0 10px; font-size: 15px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); margin-bottom: 12px; }
+  .cm-counter { float: right; font-size: 12px; color: var(--c-text3); }
+  .cm-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .cm-photo { position: relative; }
+  .cm-photo img { display: block; width: 100%; height: 110px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-bd); background: var(--c-bg2); cursor: pointer; }
+  .cm-photo img.cm-photo-broken { cursor: default; }
+  .cm-photo-del { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(0,0,0,0.6); color: #fff; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .cm-photo-add { height: 110px; border: 1px dashed var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text2); font-size: 13px; font-family: var(--font); cursor: pointer; line-height: 1.6; }
+  .cm-photo-add:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cm-meta { font-size: 12px; color: var(--c-text3); margin-bottom: 12px; }
+  .cm-msg { padding: 10px 12px; border-radius: var(--r-md); font-size: 14px; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap; }
+  .cm-msg.ok { background: var(--c-success-bg); color: var(--c-success); border: 1px solid var(--c-success-bd); }
+  .cm-msg.error { background: var(--c-danger-bg); color: var(--c-danger); border: 1px solid var(--c-danger-bd); }
+  .cm-msg.progress { background: var(--c-info-bg); color: var(--c-info); border: 1px solid var(--c-info-bd); }
+  .cm-msg.conflict { background: var(--c-warn-bg); color: var(--c-warn); border: 1px solid #FAC775; white-space: normal; }
+  .cm-msg.warn { background: var(--c-warn-bg); color: var(--c-warn); border: 1px solid #FAC775; }
+  .cm-msg-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .cm-msg-note { font-size: 12px; margin-top: 6px; }
+  .cm-foot { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+
   .btn { height: 48px; padding: 0 18px; font-size: 15px; font-weight: 500; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); cursor: pointer; font-family: var(--font); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn.primary { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
@@ -181,6 +218,11 @@
     .judge-group { width: 100%; gap: 12px; }
     .judge-btn { flex: 1; width: auto; height: 64px; font-size: 30px; }
     .ng-note textarea { font-size: 16px; min-height: 64px; }
+    .cm-btn { min-height: 44px; font-size: 15px; padding: 6px 14px; }
+    .cm-hint-text { font-size: 15px; }
+    .cm-photo img, .cm-photo-add { height: 96px; }
+    .cm-modal select { height: 50px; font-size: 17px; }
+    .cm-foot .btn { flex: 1; }
 
     /* ボタン: 全体的に大きく */
     .btn { height: 52px; font-size: 16px; }
@@ -488,6 +530,11 @@ var STATE = {
   allIssues: { nid: [], shikomi: [] },
   allDoneIssues: { nid: [], shikomi: [] },
   allIgnoredKeys: { nid: [], shikomi: [] },
+  // 対策(項目id → { text, photoIds, updatedBy, updatedAt, rev })
+  allCountermeasures: { nid: {}, shikomi: {} },
+  // サーバが対策機能に対応しているか(古い apps_script.gs だと loadAll が対策を返さない)。
+  // null はまだ読み込めていない(起動時の通信失敗など)。古いサーバと区別して案内を変える。
+  cmServerReady: null,
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
@@ -551,7 +598,9 @@ function refresh(){
       STATE.allIssues[mid] = (data.issues && data.issues[mid]) || [];
       STATE.allDoneIssues[mid] = (data.doneIssues && data.doneIssues[mid]) || [];
       STATE.allIgnoredKeys[mid] = (data.ignoredKeys && data.ignoredKeys[mid]) || [];
+      STATE.allCountermeasures[mid] = (data.countermeasures && data.countermeasures[mid]) || {};
     }
+    STATE.cmServerReady = !!data.countermeasures;
     // 同じ項目の未解決重複を1件に統合(過去の重複登録の後始末)
     mergeOpenIssues();
     // NG項目から不具合を自動生成(まだ不具合リストにないものを追加)
@@ -1086,14 +1135,23 @@ function shrinkImage(file, maxSize, cb, errcb){
       var w = img.width, h = img.height;
       if(w > h){ if(w > maxSize){ h = Math.round(h * maxSize / w); w = maxSize; } }
       else { if(h > maxSize){ w = Math.round(w * maxSize / h); h = maxSize; } }
+      // 描画と変換は失敗しうる(iPhone でキャンバスのメモリが足りないと getContext が null になる)。
+      // 失敗を errcb で知らせないと、呼び元が「処理中」のまま止まってしまう。
       var canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      var ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
+      var dataUrl;
       try {
-        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        cb(dataUrl);
-      } catch(e){ errcb && errcb(new Error('画像変換に失敗しました')); }
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        if(!ctx) throw new Error('no canvas');
+        ctx.drawImage(img, 0, 0, w, h);
+        dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      } catch(e){
+        canvas.width = 0; canvas.height = 0;
+        errcb && errcb(new Error('画像変換に失敗しました'));
+        return;
+      }
+      canvas.width = 0; canvas.height = 0;   // メモリをすぐ返す(続けて何枚も処理するため)
+      cb(dataUrl);
     };
     img.onerror = function(){ errcb && errcb(new Error('画像の読み込みに失敗しました')); };
     img.src = ev.target.result;
@@ -1161,6 +1219,476 @@ function openPhotoModal(photoId){
   div.addEventListener('click', function(ev){ if(ev.target===div){ div.remove(); } });
   var cb = document.getElementById('photo-close');
   if(cb) cb.onclick = function(){ div.remove(); };
+}
+
+// ============================================================
+// 対策: 点検で × になったときの対策方法と写真
+// ============================================================
+// 点検項目ごとに「対策方法(文章)」と「写真(最大3枚)」を登録し、点検中に見られるようにする。
+//  ・見るのはいつでもできる。登録・変更は編集モードのときだけ(○×の入力と同じ)。
+//  ・保存先はサーバのシート「NID対策」「仕込み対策」(1項目1行)。
+//  ・保存は「対策」ダイアログの保存ボタンでその場で送る(点検記録の保存キューとは別)。
+//    送れなかったときは入力をダイアログに残し、もう一度保存を押せば送り直せる。
+var CM_MAX_TEXT = 2000;   // 対策方法の文字数の上限(サーバ側と同じ)
+var CM_MAX_PHOTOS = 3;    // 写真の上限(サーバ側と同じ)
+// 写真ID → この端末で縮小した画像。保存した直後は Drive 側のサムネイルが
+// まだ作られておらず表示できないことがあるため、手元の画像を代わりに出す。
+var cmPreviewCache = {};
+// 開いている対策ダイアログの状態(同時に開くのは1つだけ)。閉じているときは null。
+//  mid / itemId : 対象の設備と項目
+//  editing      : 編集中か
+//  draft        : 編集中の内容 { text, keep:[写真ID], added:[縮小画像], updatedBy, baseRev, saveId, retryable }
+//  original     : 編集を始めたときの内容(変更があるかの判定用)
+//  saving       : 送信中か(送信中は閉じられない)
+//  busy         : 写真の縮小中などの表示文言
+//  message      : { type:'ok'|'error'|'conflict', text } 画面下部に出す知らせ
+//  conflict     : 他の端末が先に保存していたときの、その最新の内容
+var cmModal = null;
+
+function getCountermeasure(itemId, mid){
+  var all = STATE.allCountermeasures[mid || STATE.machineId] || {};
+  return all[itemId] || null;
+}
+// 文章か写真のどちらかがあれば「登録あり」
+function cmHasContent(cm){ return !!(cm && (cm.text || (cm.photoIds && cm.photoIds.length))); }
+function cmPhotoSrc(photoId, thumb){ return cmPreviewCache[photoId] || photoUrl(photoId, thumb); }
+function cmFindItem(mid, itemId){
+  var items = STATE.allItems[mid] || [];
+  for(var i=0;i<items.length;i++){ if(items[i].id===itemId) return items[i]; }
+  return null;
+}
+
+// 点検行の「対策」ボタン
+function cmButtonHTML(it){
+  var cm = getCountermeasure(it.id);
+  if(cmHasContent(cm)){
+    var n = cm.photoIds ? cm.photoIds.length : 0;
+    return '<button type="button" class="cm-btn has" data-cm="'+esc(it.id)+'">🛠 対策を見る'+(n?' <span class="cm-count">📷'+n+'</span>':'')+'</button>';
+  }
+  // 読み込めていないときは「未登録」と言い切らない(登録済みかもしれない)
+  if(STATE.cmServerReady === null) return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策(未取得)</button>';
+  return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策'+(STATE.editMode?'を登録':' 未登録')+'</button>';
+}
+
+// × の行に出す、登録済みの対策の冒頭(タップで全文と写真)。未登録なら何も出さない。
+function cmNgHintHTML(it){
+  var cm = getCountermeasure(it.id);
+  if(!cmHasContent(cm)) return '';
+  return '<div class="cm-hint" data-cm="'+esc(it.id)+'" role="button" tabindex="0">'+
+    '<div class="cm-hint-head">🛠 登録されている対策(タップで写真と全文)</div>'+
+    '<div class="cm-hint-text">'+(cm.text ? esc(cm.text) : '(写真のみ)')+'</div></div>';
+}
+
+// 点検行の中の「対策」ボタン・要約にハンドラを付ける
+function attachCountermeasureHandlers(scope){
+  var cms = scope.querySelectorAll('[data-cm]');
+  for(var i=0;i<cms.length;i++){
+    cms[i].onclick = (function(id){ return function(){ openCountermeasure(id); }; })(cms[i].getAttribute('data-cm'));
+    cms[i].onkeydown = (function(id){ return function(ev){ if(ev.key==='Enter'){ openCountermeasure(id); } }; })(cms[i].getAttribute('data-cm'));
+  }
+}
+
+// 保存のあと、点検画面のその行だけ描き直す(ボタンの表示を変えるため)
+function cmRefreshRow(mid, itemId){
+  if(STATE.tab==='check' && STATE.machineId===mid) updateCheckRow(itemId);
+}
+
+function openCountermeasure(itemId){
+  var mid = STATE.machineId;
+  if(!cmFindItem(mid, itemId)) return;
+  if(cmModal) return;   // 既に開いている(二重タップ)
+  cmModal = { mid: mid, itemId: itemId, editing: false, draft: null, original: null, saving: false, busy: '', message: null, conflict: null };
+  var div = document.createElement('div');
+  div.className = 'modal-bg';
+  div.id = 'cm-modal';
+  div.innerHTML = '<div class="modal cm-modal" role="dialog" aria-modal="true" aria-label="対策"></div>';
+  document.body.appendChild(div);
+  div.addEventListener('click', function(ev){ if(ev.target===div) requestCloseCountermeasure(); });
+  renderCountermeasure();
+}
+
+function closeCountermeasure(){
+  var div = el('cm-modal');
+  if(div) div.remove();
+  cmModal = null;
+}
+
+// 閉じる操作。送信中は閉じない。未保存の入力があれば確かめる。
+function requestCloseCountermeasure(){
+  var m = cmModal;
+  if(!m || m.saving) return;
+  if(m.editing){
+    cmReadDraftFromForm();
+    if(cmDraftChanged(m) && !confirm('入力中の対策は保存されていません。\n破棄して閉じますか?')) return;
+  }
+  closeCountermeasure();
+}
+
+// 未保存の入力があるか(ページを閉じるときの警告にも使う)
+function cmHasUnsaved(){
+  var m = cmModal;
+  if(!m || !m.editing) return false;
+  if(m.saving) return true;
+  cmReadDraftFromForm();
+  return cmDraftChanged(m);
+}
+
+function cmDraftChanged(m){
+  var d = m.draft, o = m.original;
+  if(!d || !o) return false;
+  return d.text !== o.text || d.updatedBy !== o.updatedBy || d.added.length > 0 || d.keep.join(',') !== o.keep.join(',');
+}
+
+// 文章と記入者は入力のたびに描き直さない(カーソルが飛ぶため)。描き直す前や保存の前に、ここで控える。
+function cmReadDraftFromForm(){
+  var m = cmModal;
+  if(!m || !m.draft) return;
+  var ta = el('cm-text');
+  if(ta) m.draft.text = ta.value;
+  var by = el('cm-by');
+  if(by){
+    if(by.value !== m.draft.updatedBy) m.draft.retryable = false;   // 記入者を変えたら別の保存
+    m.draft.updatedBy = by.value;
+  }
+}
+
+// 編集を始める(新規登録も同じ)
+function cmStartEdit(){
+  var m = cmModal;
+  if(!m || !STATE.editMode) return;
+  var cm = getCountermeasure(m.itemId, m.mid) || {};
+  m.draft = {
+    text: cm.text || '',
+    keep: (cm.photoIds || []).slice(),
+    added: [],
+    // 記入者は「いま書いている人」。その日の点検者を初期値にする(変更できる)
+    updatedBy: (STATE.allRecords[m.mid] && STATE.allRecords[m.mid][STATE.date] && STATE.allRecords[m.mid][STATE.date].inspector) || '',
+    // 編集を始めたときの版と内容。サーバはこれと今の内容を比べ、違えば保存せずに知らせる
+    baseRev: cm.rev || 0,
+    baseText: cm.text || '',
+    basePhotoIds: (cm.photoIds || []).slice(),
+    saveId: '',
+    retryable: false,
+    // この下書きで送った保存ID → そのとき送った文章と写真の枚数。競合の相手が
+    // 「応答の届かなかった自分の前回の保存」かを見分けるために使う
+    sent: {}
+  };
+  m.original = { text: m.draft.text, keep: m.draft.keep.slice(), updatedBy: m.draft.updatedBy };
+  m.editing = true;
+  m.busy = '';
+  m.message = null;
+  m.conflict = null;
+  renderCountermeasure();
+}
+
+// 編集をやめて閲覧に戻る(下書きを捨てる)
+function cmLeaveEdit(message){
+  var m = cmModal;
+  m.editing = false; m.draft = null; m.original = null; m.conflict = null; m.busy = '';
+  m.message = message || null;
+  renderCountermeasure();
+}
+
+function cmCancelEdit(){
+  var m = cmModal;
+  if(!m || m.saving) return;
+  cmReadDraftFromForm();
+  if(cmDraftChanged(m) && !confirm('入力中の内容を破棄しますか?')) return;
+  cmLeaveEdit();
+}
+
+// 選んだ写真を縮小して追加する(1枚ずつ順に処理。スマホのメモリを使いすぎないように)
+function cmAddFiles(fileList){
+  var m = cmModal;
+  if(!m || !m.draft) return;
+  cmReadDraftFromForm();
+  var draft = m.draft;   // 縮小が終わる前に下書きが捨てられたら、その写真は足さない
+  var room = CM_MAX_PHOTOS - draft.keep.length - draft.added.length;
+  var files = [];
+  for(var i=0;i<fileList.length && files.length<room;i++) files.push(fileList[i]);
+  if(fileList.length > files.length){
+    alert('写真は1項目 '+CM_MAX_PHOTOS+' 枚までです。'+(files.length ? '先頭の '+files.length+' 枚だけ追加します。' : ''));
+  }
+  if(files.length === 0) return;
+  var k = 0;
+  function next(){
+    if(cmModal !== m || m.draft !== draft) return;   // 閉じられた・キャンセルされた
+    if(k >= files.length){ m.busy = ''; renderCountermeasure(); return; }
+    m.busy = '写真を処理中... ('+(k+1)+'/'+files.length+')';
+    renderCountermeasure();
+    shrinkImage(files[k], 1000, function(dataUrl){
+      if(cmModal === m && m.draft === draft){ draft.added.push(dataUrl); draft.retryable = false; }
+      k++; next();
+    }, function(e){
+      alert(e.message);
+      k++; next();
+    });
+  }
+  next();
+}
+
+function cmRemovePhoto(kind, index){
+  var m = cmModal;
+  if(!m || !m.draft || m.saving) return;
+  cmReadDraftFromForm();
+  if(kind === 'keep') m.draft.keep.splice(index, 1);
+  else m.draft.added.splice(index, 1);
+  m.draft.retryable = false;
+  renderCountermeasure();
+}
+
+// 保存に失敗したときの知らせ。どうすればよいかで言い方を変える。
+function cmFailureText(msg){
+  if(/unknown action/.test(msg)){
+    return 'サーバ(Apps Script)が古い版のため保存できません。apps_script.gs を更新してください。\n入力した内容は残っています。';
+  }
+  if(/他の端末が保存中/.test(msg)){
+    return '他の端末が保存中のため、保存できませんでした。\n入力した内容は残っています。少し待ってから、もう一度「保存」を押してください。';
+  }
+  // 通信が途中で切れた・時間切れ・書き込み直後のサーバのエラー: 保存できたかどうか分からない。
+  // 同じ内容のまま送り直せば、保存済みなら二重にならず、未保存なら保存される。
+  if(/確認できませんでした/.test(msg)){
+    return 'サーバで一時的なエラーが起き、保存できたか確認できませんでした。\n入力した内容は残っています。内容を変えずに、もう一度「保存」を押してください(二重には保存されません)。';
+  }
+  if(/タイムアウト|HTTP \d|解析失敗|fetch|network|Load failed/i.test(msg)){
+    return '通信が途切れたため、保存できたか確認できませんでした('+msg+')。\n入力した内容は残っています。内容を変えずに、もう一度「保存」を押してください(二重には保存されません)。';
+  }
+  // 入力の不備など、送り直しても通らないもの
+  return '保存できませんでした: '+msg+'\n入力した内容は残っています。';
+}
+
+// 保存する。force: 他の端末の更新を承知で上書きする(競合の知らせから押されたとき)
+function cmSave(force){
+  var m = cmModal;
+  if(!m || !m.draft || m.saving || m.busy) return;
+  cmReadDraftFromForm();
+  var d = m.draft;
+  if(force && m.conflict){
+    // いまサーバにある内容を基準にし直して上書きする
+    d.baseRev = m.conflict.rev || 0;
+    d.baseText = m.conflict.text || '';
+    d.basePhotoIds = (m.conflict.photoIds || []).slice();
+    d.retryable = false;
+  } else if(!cmDraftChanged(m)){
+    cmLeaveEdit({ type:'ok', text:'変更はありませんでした' });
+    return;
+  }
+  var text = d.text.replace(/^\s+|\s+$/g, '');
+  if(text.length > CM_MAX_TEXT){
+    m.message = { type:'error', text:'対策方法は '+CM_MAX_TEXT+' 文字以内にしてください(現在 '+text.length+' 文字)' };
+    renderCountermeasure();
+    return;
+  }
+  if(!text && d.keep.length === 0 && d.added.length === 0 && !confirm('対策方法と写真がすべて空です。\nこの項目の対策を削除しますか?')) return;
+  // 送ったのに応答が届かなかった保存をもう一度送るときは、同じ保存IDを使う。
+  // サーバは同じIDの保存を二重に行わない(写真が二重にできない)。
+  // 入力を変えたあとは別の保存なので、新しいIDにする。
+  if(!d.retryable || !d.saveId){
+    d.saveId = 'cm_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*1e9).toString(36);
+  }
+  d.retryable = true;
+  d.sent[d.saveId] = { text: text, photos: d.keep.length + d.added.length };
+  m.saving = true;
+  m.conflict = null;
+  m.message = { type:'progress', text: d.added.length ? '写真をアップロードして保存中...(しばらくお待ちください)' : '保存中...' };
+  renderCountermeasure();
+  var added = d.added.slice();
+  // 項目情報はサーバの項目マスタが空のとき(初期項目のまま運用)だけ使われる
+  var it = cmFindItem(m.mid, m.itemId) || {};
+  postGAS('saveCountermeasure', {
+    machineId: m.mid, itemId: m.itemId, text: text, keepPhotoIds: d.keep.slice(), newImages: added,
+    baseRev: d.baseRev, baseText: d.baseText, basePhotoIds: d.basePhotoIds.slice(),
+    updatedBy: d.updatedBy, saveId: d.saveId,
+    item: { no: it.no, place: it.place, side: it.side, content: it.content }
+  }, function(res){
+    m.saving = false;
+    if(res.conflict){
+      // 先に保存されていた。入力は残し、最新の内容を知らせて選んでもらう
+      var cur = res.current || { text:'', photoIds:[], updatedBy:'', updatedAt:'', rev:0 };
+      STATE.allCountermeasures[m.mid][m.itemId] = cur;
+      cmRefreshRow(m.mid, m.itemId);
+      d.retryable = false;
+      m.conflict = cur;
+      // 先に保存したのが、応答の届かなかった自分の前回の保存か。その後シートで直接直されて
+      // いることもあるので、送った内容がそのまま残っているときだけ「自分の保存」とみなす
+      var mySent = res.currentSaveId ? d.sent[res.currentSaveId] : null;
+      var mine = !!(mySent && mySent.text === cur.text && mySent.photos === (cur.photoIds || []).length);
+      m.message = { type:'conflict', mine: mine };
+      if(cmModal === m) renderCountermeasure();
+      return;
+    }
+    var saved = res.countermeasure;
+    (res.newPhotoIds || []).forEach(function(id, i){ if(added[i]) cmPreviewCache[id] = added[i]; });
+    STATE.allCountermeasures[m.mid][m.itemId] = saved;
+    cmRefreshRow(m.mid, m.itemId);
+    // 同期バーは点検記録の保存状態を出す場所。未送信やエラーの表示を消さないよう、落ち着いているときだけ知らせる
+    if(STATE.sync.state === 'online' || STATE.sync.state === 'editing' || STATE.sync.state === 'idle'){
+      STATE.sync = { state:'editing', message:'対策を保存しました', at:timeStr() }; updateSyncBar();
+    }
+    if(cmModal === m){
+      cmLeaveEdit(res.warning ? { type:'warn', text:'保存しました。ただし: '+res.warning } : { type:'ok', text:'保存しました' });
+    }
+  }, function(e){
+    m.saving = false;
+    m.message = { type:'error', text: cmFailureText(e.message) };
+    if(cmModal === m) renderCountermeasure();
+  }, 90000);  // 写真3枚を遅い回線で送ることもあるので長めに待つ
+}
+
+// 競合の知らせから「最新の内容を見る」: 自分の入力を捨てて、最新を表示する
+function cmDiscardForLatest(){
+  var m = cmModal;
+  if(!m || m.saving) return;
+  if(!confirm('入力した内容を破棄して、最新の対策を表示しますか?')) return;
+  cmLeaveEdit();
+}
+
+// 拡大表示(手元の未保存の写真にも使えるよう、画像のURLを直接受け取る)
+function cmOpenImage(src){
+  var div = document.createElement('div');
+  div.className = 'modal-bg';
+  div.innerHTML = '<div style="max-width:90vw;max-height:90vh;text-align:center">'+
+    '<img src="'+esc(src)+'" style="max-width:90vw;max-height:80vh;border-radius:8px;background:#fff" alt="対策の写真">'+
+    '<div style="margin-top:10px"><button class="btn">閉じる</button></div></div>';
+  document.body.appendChild(div);
+  div.addEventListener('click', function(ev){ if(ev.target===div || ev.target.tagName==='BUTTON') div.remove(); });
+}
+
+// 項目の見出し(場所・側・No.・点検内容)
+function cmItemHeaderHTML(it){
+  return '<div class="cm-head"><div style="min-width:0">'+
+    '<div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+
+    ' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(it.no)+'</span></div>'+
+    '<div class="cm-head-content">'+esc(it.content)+'</div></div>'+
+    '<button type="button" class="btn sm" id="cm-close">✕ 閉じる</button></div>';
+}
+
+function cmPhotoTileHTML(src, viewAttr, delAttr){
+  return '<div class="cm-photo"><img src="'+esc(src)+'" '+viewAttr+' alt="対策の写真">'+
+    (delAttr ? '<button type="button" class="cm-photo-del" '+delAttr+' aria-label="この写真を外す">✕</button>' : '')+'</div>';
+}
+
+function cmMessageHTML(m){
+  var msg = m.message;
+  if(!msg) return '';
+  if(msg.type === 'conflict'){
+    var c = m.conflict || {};
+    var when = c.updatedAt ? '('+esc(c.updatedAt)+(c.updatedBy ? ' '+esc(c.updatedBy) : '')+')' : '';
+    var head = msg.mine
+      // 通信が途切れて確認できなかった自分の前回の保存が、実は届いていた
+      ? 'ℹ 前回の保存はサーバに届いていました'+when+'。その後に変えた入力は、まだ保存されていません。'
+      : '⚠ 編集している間に、他の端末(またはシートの直接編集)でこの対策が更新されました'+when+'。';
+    return '<div class="cm-msg conflict">'+head+'<br>あなたの入力はそのまま残っています。'+
+      '<div class="cm-msg-btns">'+
+      '<button type="button" class="btn sm" id="cm-latest">最新の内容を見る(入力を破棄)</button>'+
+      '<button type="button" class="btn sm warning" id="cm-force">この入力で上書き保存</button></div>'+
+      (msg.mine ? '' : '<div class="cm-msg-note">上書きすると、他の端末で書かれた文章と写真の変更は消えます。</div>')+'</div>';
+  }
+  return '<div class="cm-msg '+msg.type+'">'+esc(msg.text)+'</div>';
+}
+
+function renderCountermeasure(){
+  var m = cmModal;
+  var box = document.querySelector('#cm-modal .modal');
+  if(!m || !box) return;
+  var it = cmFindItem(m.mid, m.itemId);
+  if(!it){ closeCountermeasure(); return; }
+  var cm = getCountermeasure(m.itemId, m.mid);
+  var h = cmItemHeaderHTML(it);
+  if(STATE.cmServerReady === null){
+    h += '<div class="cm-msg error">対策をまだ読み込めていません(通信エラー)。「🔄 最新を取得」を押してから開き直してください。</div>';
+  } else if(!STATE.cmServerReady){
+    h += '<div class="cm-msg error">サーバ(Apps Script)がまだ対策機能に対応していません。apps_script.gs を更新して新しいバージョンでデプロイしてください。</div>';
+  }
+
+  if(!m.editing){
+    // ---- 閲覧 ----
+    if(cmHasContent(cm)){
+      h += '<label>対策方法</label>';
+      h += '<div class="cm-text-view">'+(cm.text ? esc(cm.text) : '<span style="color:var(--c-text3)">(文章なし)</span>')+'</div>';
+      if(cm.photoIds && cm.photoIds.length){
+        h += '<label>写真(タップで拡大)</label><div class="cm-photos">';
+        cm.photoIds.forEach(function(id){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', ''); });
+        h += '</div>';
+      }
+      h += '<div class="cm-meta">最終更新: '+esc(cm.updatedAt || '—')+(cm.updatedBy ? ' / 記入者: '+esc(cm.updatedBy) : '')+'</div>';
+    } else if(STATE.cmServerReady !== null){
+      h += '<div class="empty" style="padding:28px 12px">この項目の対策はまだ登録されていません</div>';
+    }
+    h += cmMessageHTML(m);
+    h += '<div class="cm-foot">';
+    if(STATE.editMode && STATE.cmServerReady){
+      h += '<button type="button" class="btn primary" id="cm-edit">'+(cmHasContent(cm) ? '✏ 対策を編集' : '＋ 対策を登録')+'</button>';
+    } else if(!STATE.editMode){
+      h += '<div class="cm-meta" style="margin:0">登録・変更は「✏ 編集モード」をONにしてから行えます</div>';
+    }
+    h += '</div>';
+  } else {
+    // ---- 編集 ----
+    var d = m.draft;
+    var dis = (m.saving || m.busy) ? ' disabled' : '';
+    var count = d.keep.length + d.added.length;
+    h += '<label for="cm-text">対策方法 <span class="cm-counter" id="cm-counter">'+d.text.length+' / '+CM_MAX_TEXT+'</span></label>';
+    h += '<textarea id="cm-text" maxlength="'+CM_MAX_TEXT+'" placeholder="× のときの確認手順・処置・連絡先などを記入"'+dis+'>'+esc(d.text)+'</textarea>';
+    h += '<label>写真('+count+' / '+CM_MAX_PHOTOS+' 枚)</label><div class="cm-photos">';
+    d.keep.forEach(function(id, i){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', m.saving ? '' : 'data-cm-del-keep="'+i+'"'); });
+    d.added.forEach(function(src, i){ h += cmPhotoTileHTML(src, 'data-cm-view-new="'+i+'"', m.saving ? '' : 'data-cm-del-new="'+i+'"'); });
+    if(count < CM_MAX_PHOTOS){
+      h += '<button type="button" class="cm-photo-add" id="cm-add"'+dis+'>📷<br>写真を追加</button>';
+    }
+    h += '</div>';
+    h += '<input type="file" id="cm-file" accept="image/*" multiple style="display:none">';
+    h += '<label for="cm-by">記入者</label>'+staffSelectHTML('cm-by', d.updatedBy, dis);
+    if(m.busy) h += '<div class="cm-msg progress">'+esc(m.busy)+'</div>';
+    h += cmMessageHTML(m);
+    h += '<div class="cm-foot">';
+    h += '<button type="button" class="btn" id="cm-cancel"'+(m.saving?' disabled':'')+'>キャンセル</button>';
+    h += '<button type="button" class="btn primary" id="cm-save"'+dis+'>'+(m.saving ? '保存中...' : '💾 保存')+'</button>';
+    h += '</div>';
+  }
+  box.innerHTML = h;
+  attachCountermeasureModalHandlers(box);
+}
+
+function attachCountermeasureModalHandlers(box){
+  var m = cmModal;
+  if(el('cm-close')) el('cm-close').onclick = requestCloseCountermeasure;
+  if(el('cm-edit')) el('cm-edit').onclick = cmStartEdit;
+  if(el('cm-cancel')) el('cm-cancel').onclick = cmCancelEdit;
+  if(el('cm-save')) el('cm-save').onclick = function(){ cmSave(false); };
+  if(el('cm-force')) el('cm-force').onclick = function(){ cmSave(true); };
+  if(el('cm-latest')) el('cm-latest').onclick = cmDiscardForLatest;
+  var ta = el('cm-text');
+  if(ta){
+    ta.oninput = function(){
+      if(m && m.draft){ m.draft.text = ta.value; m.draft.retryable = false; }
+      var c = el('cm-counter'); if(c) c.textContent = ta.value.length+' / '+CM_MAX_TEXT;
+    };
+  }
+  var add = el('cm-add'), file = el('cm-file');
+  if(add && file){
+    add.onclick = function(){ file.click(); };
+    file.onchange = function(){ var fl = this.files; if(fl && fl.length) cmAddFiles(fl); this.value = ''; };
+  }
+  var views = box.querySelectorAll('[data-cm-view]');
+  for(var i=0;i<views.length;i++){
+    views[i].onclick = (function(id){ return function(){ cmOpenImage(cmPhotoSrc(id, false)); }; })(views[i].getAttribute('data-cm-view'));
+  }
+  var viewsNew = box.querySelectorAll('[data-cm-view-new]');
+  for(var j=0;j<viewsNew.length;j++){
+    viewsNew[j].onclick = (function(i){ return function(){ if(m && m.draft && m.draft.added[i]) cmOpenImage(m.draft.added[i]); }; })(Number(viewsNew[j].getAttribute('data-cm-view-new')));
+  }
+  var delKeep = box.querySelectorAll('[data-cm-del-keep]');
+  for(var k=0;k<delKeep.length;k++){
+    delKeep[k].onclick = (function(i){ return function(){ cmRemovePhoto('keep', i); }; })(Number(delKeep[k].getAttribute('data-cm-del-keep')));
+  }
+  var delNew = box.querySelectorAll('[data-cm-del-new]');
+  for(var n=0;n<delNew.length;n++){
+    delNew[n].onclick = (function(i){ return function(){ cmRemovePhoto('new', i); }; })(Number(delNew[n].getAttribute('data-cm-del-new')));
+  }
+  // 写真が読めないとき(削除済み・権限なし・サムネイル作成中)は枠だけ残す
+  var imgs = box.querySelectorAll('.cm-photo img');
+  for(var p=0;p<imgs.length;p++){ imgs[p].onerror = function(){ this.className = 'cm-photo-broken'; this.alt = '表示できません'; }; }
 }
 
 // 指定機械の項目をチャンク分割送信する汎用関数
@@ -1242,8 +1770,9 @@ function setResult(itemId, value){
   }
   // タップした行だけ更新
   updateCheckRow(itemId);
-  // サマリー・進捗バーだけ更新
+  // サマリー・進捗バーと、見出しの (完了/件数) だけ更新
   updateSummary();
+  updateGroupCounts();
   // 保存をスケジュール
   scheduleSave(STATE.date, cur);
 }
@@ -1284,6 +1813,24 @@ function updateSummary(){
   }
   var pf = el('progress-fill');
   if(pf) pf.style.width = (stats.total?(stats.done/stats.total*100):0)+'%';
+}
+
+// 点検画面の見出しごとの項目id(renderCheck が描くたびに作り直す)。
+// 見出しの件数の要素は data-group-count に、この配列の何番目かを持つ。
+var checkGroups = [];
+
+// 見出しの (完了/件数) を数え直す。○× を押したときは画面全体を描き直さず
+// 行と集計だけを描き直すため、見出しの件数もここで合わせる。
+function updateGroupCounts(){
+  var cur = getCurrent();
+  var spans = document.querySelectorAll('[data-group-count]');
+  for(var i=0;i<spans.length;i++){
+    var ids = checkGroups[Number(spans[i].getAttribute('data-group-count'))];
+    if(!ids) continue;
+    var done = 0;
+    for(var j=0;j<ids.length;j++){ if(cur.results[ids[j]]) done++; }
+    spans[i].textContent = '('+done+'/'+ids.length+' 完了)';
+  }
 }
 function setNote(itemId, text){
   if(!STATE.editMode) return;
@@ -1485,15 +2032,9 @@ function addItem(){
   if(noInput !== ''){
     var insNo = parseInt(noInput, 10);
     if(isNaN(insNo) || insNo < 1){ alert('No.は1以上の数字で入力してください'); return; }
-    // No.順に並べ、指定位置に挿入。以降は自動で繰り下がる(連番振り直し)
+    // No.順に並べ、指定した No. の位置に挿入。以降は自動で繰り下がる(連番振り直し)
     next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
-    // 挿入位置を決定: 指定No.以上の最初の項目の前に入れる
-    var insertIdx = next.length;
-    for(var i=0;i<next.length;i++){
-      if((next[i].no||0) >= insNo){ insertIdx = i; break; }
-    }
-    newItem.no = insNo;
-    next.splice(insertIdx, 0, newItem);
+    insertAtNo(next, newItem, insNo);
   } else {
     // 自動採番:末尾に追加
     next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
@@ -1507,6 +2048,12 @@ function addItem(){
 // 配列の項目を、並び順のまま 1,2,3,... に振り直す
 function renumber(arr){
   for(var i=0;i<arr.length;i++){ arr[i].no = i+1; }
+}
+// No.順に並んだ配列へ、振り直した後にちょうど指定の No. になる位置で項目を入れる
+// (No. が大きすぎるときは末尾)。以前は「指定 No. 以上の最初の項目の前」に入れて
+// いたため、項目を下へ移すと、自分が抜けた分だけ1つ手前(17 と入れると 16)になっていた。
+function insertAtNo(sorted, item, no){
+  sorted.splice(Math.min(no - 1, sorted.length), 0, item);
 }
 function deleteItem(id){
   if(!confirm('この点検項目を削除しますか?')) return;
@@ -1534,15 +2081,10 @@ function saveEditItem(){
   e.content = el('edit-content').value;
   var next = getItems().map(function(it){ return it.id===e.id ? e : it; });
   if(targetNo !== null && moved){
-    // No.を変更した場合: いったん対象を外し、指定位置に挿入して全体再採番
+    // No.を変更した場合: いったん対象を外し、指定した No. の位置に入れて全体再採番
     var others = next.filter(function(it){ return it.id !== e.id; });
     others.sort(function(a,b){ return (a.no||0) - (b.no||0); });
-    var insertIdx = others.length;
-    for(var i=0;i<others.length;i++){
-      if((others[i].no||0) >= targetNo){ insertIdx = i; break; }
-    }
-    e.no = targetNo;
-    others.splice(insertIdx, 0, e);
+    insertAtNo(others, e, targetNo);
     next = others;
   } else {
     next.sort(function(a,b){ return (a.no||0) - (b.no||0); });
@@ -1690,7 +2232,7 @@ function exportExcel(){
     iaoa.push(['未解決の不具合はありません。']);
   } else {
     openIssues.forEach(function(is){
-      iaoa.push([is.date||'', (is.no!=null?is.no:''), is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'', is.status||'']);
+      iaoa.push([is.date||'', issueNoCell(is), is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'', is.status||'']);
     });
   }
   iaoa.push([]);
@@ -1700,7 +2242,7 @@ function exportExcel(){
     iaoa.push(['完了した不具合はありません。']);
   } else {
     doneIssues.forEach(function(is){
-      iaoa.push([is.date||'', (is.no!=null?is.no:''), is.doneDate||'', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'']);
+      iaoa.push([is.date||'', issueNoCell(is), is.doneDate||'', is.place||'', is.side||'', is.content||'', is.detail||'', is.comment||'', is.assignee||'']);
     });
   }
   var iws = XLSX.utils.aoa_to_sheet(iaoa);
@@ -1718,13 +2260,21 @@ function getStats(){
   for(var k in cur.results){ if(cur.results[k]==='ok')ok++; else if(cur.results[k]==='ng')ng++; }
   return { ok:ok, ng:ng, done:ok+ng, total:getItems().length };
 }
-function getGrouped(){
-  var g={}, order=[];
-  getItems().forEach(function(it){
-    if(!g[it.place]){ g[it.place]=[]; order.push(it.place); }
-    g[it.place].push(it);
+// 点検画面の並び: 項目を No. の順に並べ、同じ場所が続くところを1つの見出しにまとめる。
+// 以前は場所ごとに全項目を1か所へ集めていたため、項目管理で No. を変えて別の場所の
+// 間へ移した項目が元の場所の見出しの下に集められ、No. が 1, 17, 2, 3… と飛んで見えていた。
+// いまは No. の順をそのまま守り、同じ場所が離れて出てくるときは見出しも2回出る。
+function getPlaceRuns(){
+  var items = getItems().map(function(it, i){ return { it: it, i: i }; });
+  // No. が同じ項目(シートの手編集など)は元の並びのまま(古いブラウザの並べ替えでも順が揺れないように)
+  items.sort(function(a, b){ return ((a.it.no||0) - (b.it.no||0)) || (a.i - b.i); });
+  var runs = [];
+  items.forEach(function(x){
+    var last = runs[runs.length-1];
+    if(!last || last.place !== x.it.place){ last = { place: x.it.place, items: [] }; runs.push(last); }
+    last.items.push(x.it);
   });
-  return { groups:g, order:order };
+  return runs;
 }
 function getDateList(){
   var recs = getRecords(); var list=[];
@@ -1939,23 +2489,35 @@ function renderCheck(){
   h += '</div>';
 
   h += '<div class="no-print">';
-  var gr = getGrouped();
   var shownTotal = 0;
-  gr.order.forEach(function(place){
-    var list = gr.groups[place];
+  var blocks = [];
+  getPlaceRuns().forEach(function(run){
     // このグループ内で、フィルタに合致する項目だけ抽出
-    var visible = list.filter(function(it){
+    var vis = run.items.filter(function(it){
       var v = cur.results[it.id];
       if(f==='undone') return !v;
       if(f==='ng') return v==='ng';
       return true;
     });
-    if(visible.length===0) return; // フィルタで空のグループは見出しごと隠す
-    // グループ進捗(このグループの完了数/項目数)
+    if(vis.length===0) return; // フィルタで空のグループは見出しごと隠す
+    // 間の場所がフィルタで隠れて同じ場所が続くときは、見出しを1つにまとめる
+    var last = blocks[blocks.length-1];
+    if(last && last.place === run.place){
+      last.items = last.items.concat(run.items);
+      last.visible = last.visible.concat(vis);
+    } else {
+      blocks.push({ place: run.place, items: run.items, visible: vis });
+    }
+  });
+  checkGroups = [];
+  blocks.forEach(function(b){
+    var place = b.place, list = b.items, visible = b.visible;
+    // グループ進捗(このグループの完了数/項目数)。○× を押した直後は updateGroupCounts が数え直す
     var gdone = 0;
     list.forEach(function(it){ if(cur.results[it.id]) gdone++; });
     h += '<div class="group-header">📁 '+esc(place)+
-      ' <span style="font-weight:400;margin-left:6px">('+gdone+'/'+list.length+' 完了)</span></div>';
+      ' <span style="font-weight:400;margin-left:6px" data-group-count="'+checkGroups.length+'">('+gdone+'/'+list.length+' 完了)</span></div>';
+    checkGroups.push(list.map(function(it){ return it.id; }));
     visible.forEach(function(it){
       shownTotal++;
       var v = cur.results[it.id];
@@ -1987,13 +2549,14 @@ function checkRowInner(it, v, note){
     h += '<img class="row-photo" src="'+photoUrl(it.photoId,true)+'" data-photo="'+it.photoId+'" alt="見本写真" loading="lazy">';
   }
   h += '<div class="row-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
-  h += '<div class="row-content">'+esc(it.content)+'</div></div>';
+  h += '<div class="row-content">'+esc(it.content)+'</div>';
+  h += '<div class="cm-line">'+cmButtonHTML(it)+'</div></div>';
   h += '<div class="judge-group">';
   h += '<button class="judge-btn '+(v==='ok'?'ok-on':'')+'" data-result="ok" data-id="'+it.id+'" '+dis+'>○</button>';
   h += '<button class="judge-btn '+(v==='ng'?'ng-on':'')+'" data-result="ng" data-id="'+it.id+'" '+dis+'>×</button>';
   h += '</div>';
   if(v==='ng'){
-    h += '<div class="ng-note"><textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
+    h += '<div class="ng-note">'+cmNgHintHTML(it)+'<textarea data-note="'+it.id+'" placeholder="不具合内容を記入(任意)" '+dis+'>'+esc(note)+'</textarea></div>';
   }
   return h;
 }
@@ -2012,6 +2575,7 @@ function attachRowHandlers(row, it){
   if(ph){
     ph.onclick = (function(pid){ return function(){ openPhotoModal(pid); }; })(ph.getAttribute('data-photo'));
   }
+  attachCountermeasureHandlers(row);
 }
 function sc(label, value, color){
   return '<div class="sc"><div class="sc-label">'+label+'</div><div class="sc-value" style="color:'+(color||'inherit')+'">'+value+'</div></div>';
@@ -2038,6 +2602,30 @@ function renderIssues(){
   return h;
 }
 
+// 不具合の項目の、今の No.。
+// 不具合は登録した時点の No. を写して持っているが、項目管理で並べ替えると番号が変わる。
+// 点検画面・月次の点検表と同じ番号になるよう、表示のたびに今の項目一覧から引き直す
+// (シートに保存された登録時の No. は書き換えない)。
+// 項目が削除されて見つからなければ null。登録時の番号は、今は別の項目の番号に
+// なっていることがあり、取り違えのもとになるため使わない。
+// 項目idの無い古い行は、引き直せないので登録時の番号のまま。
+function issueCurrentNo(is){
+  if(!is.itemId) return (is.no != null) ? is.no : '';
+  var items = getItems();
+  for(var i=0;i<items.length;i++){ if(items[i].id === is.itemId) return items[i].no; }
+  return null;
+}
+// 表の No. 欄に入れる値(削除された項目は「削除」)
+function issueNoCell(is){
+  var n = issueCurrentNo(is);
+  return n === null ? '削除' : n;
+}
+// 文中に出す形(「No.17」/「削除済みの項目」)
+function issueNoLabel(is){
+  var n = issueCurrentNo(is);
+  return n === null ? '削除済みの項目' : 'No.' + n;
+}
+
 function issueCard(is){
   var days = daysSince(is.date);
   var statusColors = { '未着手':'var(--c-danger)', '対応中':'var(--c-warn)', '完了':'var(--c-success)' };
@@ -2048,7 +2636,7 @@ function issueCard(is){
   // ヘッダ行
   h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">';
   h += '<div style="flex:1;min-width:200px">';
-  h += '<div><span class="row-place">'+esc(is.place)+'</span>'+(is.side?'<span class="row-side">'+esc(is.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">No.'+esc(is.no)+'</span></div>';
+  h += '<div><span class="row-place">'+esc(is.place)+'</span>'+(is.side?'<span class="row-side">'+esc(is.side)+'</span>':'')+' <span style="font-size:12px;color:var(--c-text3)">'+esc(issueNoLabel(is))+'</span></div>';
   h += '<div style="font-size:15px;margin-top:4px">'+esc(is.content)+'</div>';
   h += '</div>';
   // 経過バッジ
@@ -2674,7 +3262,7 @@ function renderAnalysis(){
       var col = ageBucketOf(o.days).color;
       h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--c-bd)">';
       h += '<div style="min-width:64px;font-size:18px;font-weight:600;color:'+col+'">'+o.days+'日</div>';
-      h += '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--c-text2)">'+esc(is.place)+(is.side?' / '+esc(is.side):'')+' ・ No.'+esc(is.no)+'</div>';
+      h += '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--c-text2)">'+esc(is.place)+(is.side?' / '+esc(is.side):'')+' ・ '+esc(issueNoLabel(is))+'</div>';
       h += '<div style="font-size:14px">'+esc(is.content)+'</div></div>';
       h += '<div style="font-size:12px;color:var(--c-text3)">'+esc(is.status)+'</div>';
       h += '</div>';
@@ -2929,7 +3517,7 @@ function buildPrintArea(){
       var mlabel = is.date ? (is.date.split('-')[0]+'/'+is.date.split('-')[1]) : '';
       h += '<tr>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
-      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(is.no!=null?is.no:'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(issueNoCell(is))+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.detail||'')+'</td>';
@@ -2964,7 +3552,7 @@ function buildPrintArea(){
       var mlabel = is.date ? (is.date.split('-')[0]+'/'+is.date.split('-')[1]) : '';
       h += '<tr>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(mlabel)+'</td>';
-      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(is.no!=null?is.no:'')+'</td>';
+      h += '<td style="border:1px solid #333;padding:2px;text-align:center">'+esc(issueNoCell(is))+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;text-align:center;font-size:7pt">'+esc(is.doneDate||'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.place)+(is.side?' '+esc(is.side):'')+'</td>';
       h += '<td style="border:1px solid #333;padding:2px;font-size:7pt">'+esc(is.content)+'</td>';
@@ -3016,6 +3604,8 @@ function attachHandlers(){
   var fbs = document.querySelectorAll('[data-filter]');
   for(var i=0;i<fbs.length;i++){ fbs[i].onclick = (function(f){ return function(){ setCheckFilter(f); }; })(fbs[i].getAttribute('data-filter')); }
   if(el('btn-jump-ng')) el('btn-jump-ng').onclick = jumpToNG;
+  // 点検行の「対策」ボタンと、× の行の対策の要約
+  attachCountermeasureHandlers(el('root'));
 
   // 見本写真サムネイル: タップで拡大(点検画面・項目管理リスト共通)
   var phs = document.querySelectorAll('[data-photo]');
@@ -3101,7 +3691,7 @@ function updateSyncBar(){
 // 見ていないため、キューに積まれた・送信中のジョブも条件に含める。
 // (GASへの往復は数秒かかり、その間に閉じられると送信が中断される)
 window.addEventListener('beforeunload', function(e){
-  if(pendingData || saveTimer || hasPendingIssueSave() || unsentCount() > 0){
+  if(pendingData || saveTimer || hasPendingIssueSave() || unsentCount() > 0 || cmHasUnsaved()){
     e.preventDefault();
     e.returnValue = '保存中のデータがあります。このまま閉じますか?';
     return e.returnValue;
