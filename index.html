@@ -153,6 +153,24 @@
   .photo-edit-empty { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--c-text3); cursor: default; }
   .photo-edit-btns { display: flex; flex-direction: column; gap: 8px; }
 
+  /* 項目の並び替え(ドラッグ)。操作欄は上に貼り付けて、長い一覧でも保存ボタンが見えるようにする */
+  .reorder-bar { position: -webkit-sticky; position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 10px; background: var(--c-info-bg); border: 1px solid var(--c-info-bd); border-radius: var(--r-lg); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .reorder-bar-text { flex: 1 1 260px; font-size: 13px; line-height: 1.6; color: var(--c-text2); }
+  .reorder-bar-text b { font-size: 14px; color: var(--c-info); }
+  .reorder-bar-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .reorder-state { font-size: 12px; color: var(--c-text3); }
+  .reorder-list { overflow-anchor: none; }   /* 行を入れ替えたときにブラウザがページをずらさないように */
+  .reorder-row { display: grid; grid-template-columns: 44px 32px 1fr 40px 40px; gap: 6px; align-items: center; padding: 6px 8px; background: var(--c-bg); border: 1px solid var(--c-bd); border-radius: var(--r-md); margin-bottom: 6px; }
+  .reorder-row.dragging { position: relative; z-index: 10; background: var(--c-info-bg); border-color: var(--c-info); box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
+  .reorder-grip { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--c-text2); background: var(--c-bg2); border-radius: var(--r-md); cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .reorder-row.dragging .reorder-grip { cursor: grabbing; background: var(--c-info); color: #fff; }
+  .reorder-no { font-size: 15px; font-weight: 500; text-align: center; color: var(--c-text2); }
+  .reorder-body { min-width: 0; }
+  .reorder-body .row-place, .reorder-body .row-side { margin-bottom: 2px; }
+  .reorder-content { font-size: 14px; line-height: 1.4; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .reorder-step { width: 40px; height: 40px; padding: 0; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text2); font-size: 14px; cursor: pointer; font-family: var(--font); }
+  body.reorder-dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
+
   .empty { text-align: center; padding: 40px 20px; color: var(--c-text2); font-size: 14px; background: var(--c-bg2); border-radius: var(--r-lg); }
   .progress-bar { height: 8px; background: var(--c-bg2); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
   .progress-fill { height: 100%; background: var(--c-success); transition: width 0.3s; }
@@ -218,6 +236,13 @@
     .judge-group { width: 100%; gap: 12px; }
     .judge-btn { flex: 1; width: auto; height: 64px; font-size: 30px; }
     .ng-note textarea { font-size: 16px; min-height: 64px; }
+    .reorder-bar { padding: 8px 10px; }
+    .reorder-bar-text { font-size: 12px; line-height: 1.5; }
+    .reorder-bar-btns { width: 100%; }
+    .reorder-bar-btns .btn { flex: 1; }
+    .reorder-state { width: 100%; }
+    .reorder-row { grid-template-columns: 44px 28px 1fr 40px 40px; gap: 4px; padding: 6px; }
+    .reorder-content { font-size: 15px; }
     .cm-btn { min-height: 44px; font-size: 15px; padding: 6px 14px; }
     .cm-hint-text { font-size: 15px; }
     .cm-photo img, .cm-photo-add { height: 96px; }
@@ -540,6 +565,7 @@ var STATE = {
   sync: { state:'idle', message:'', at:null },
   printMonth: currentMonthStr(),
   editingItem: null,
+  reorder: null,        // 項目の並び替え(ドラッグ)の途中の状態。renderReorder を参照
   staffNames: [],
   checkFilter: 'all',
   loading: true
@@ -2109,7 +2135,7 @@ function flushSave(){
 }
 
 function toggleEditMode(){
-  if(STATE.editMode){ flushSave(); STATE.editMode=false; render(); }
+  if(STATE.editMode){ if(!confirmLeaveReorder()) return; flushSave(); STATE.editMode=false; render(); }
   else if(confirm('編集モードに入ります。\n他の人と同時編集すると、後から保存した方の内容で上書きされます。\n編集を始めますか?')){
     STATE.editMode=true; render();
   }
@@ -2126,8 +2152,8 @@ function confirmLeaveCheck(){
   }
   return true;
 }
-function switchMachine(mid){ if(!confirmLeaveCheck()) return; flushSave(); STATE.machineId=mid; STATE.editingItem=null; STATE.checkFilter='all'; render(); }
-function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); render(); }
+function switchMachine(mid){ if(!confirmLeaveCheck() || !confirmLeaveReorder()) return; flushSave(); STATE.machineId=mid; STATE.editingItem=null; STATE.checkFilter='all'; render(); }
+function switchTab(t){ if(t!=='check' && !confirmLeaveCheck()) return; if(t!=='items' && !confirmLeaveReorder()) return; flushSave(); STATE.tab=t; if(t==='issues') syncIssuesFromRecords(); render(); }
 function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 
 // ============================================================
@@ -2265,16 +2291,20 @@ function getStats(){
 // 間へ移した項目が元の場所の見出しの下に集められ、No. が 1, 17, 2, 3… と飛んで見えていた。
 // いまは No. の順をそのまま守り、同じ場所が離れて出てくるときは見出しも2回出る。
 function getPlaceRuns(){
-  var items = getItems().map(function(it, i){ return { it: it, i: i }; });
-  // No. が同じ項目(シートの手編集など)は元の並びのまま(古いブラウザの並べ替えでも順が揺れないように)
-  items.sort(function(a, b){ return ((a.it.no||0) - (b.it.no||0)) || (a.i - b.i); });
   var runs = [];
-  items.forEach(function(x){
+  itemsInNoOrder().forEach(function(it){
     var last = runs[runs.length-1];
-    if(!last || last.place !== x.it.place){ last = { place: x.it.place, items: [] }; runs.push(last); }
-    last.items.push(x.it);
+    if(!last || last.place !== it.place){ last = { place: it.place, items: [] }; runs.push(last); }
+    last.items.push(it);
   });
   return runs;
+}
+// 項目を No. の順に並べたもの。No. が同じ項目(シートの手編集など)は元の並びのまま
+// (古いブラウザの並べ替えでも順が揺れないように、元の位置で順を決める)
+function itemsInNoOrder(){
+  var xs = getItems().map(function(it, i){ return { it: it, i: i }; });
+  xs.sort(function(a, b){ return ((a.it.no||0) - (b.it.no||0)) || (a.i - b.i); });
+  return xs.map(function(x){ return x.it; });
 }
 function getDateList(){
   var recs = getRecords(); var list=[];
@@ -2694,6 +2724,7 @@ function renderHistory(){
 }
 
 function renderItems(){
+  if(STATE.reorder && STATE.reorder.mid === STATE.machineId && STATE.editMode) return renderReorder();
   var m = getMachine();
   var items = getItems();
   var ed = STATE.editMode;
@@ -2734,7 +2765,10 @@ function renderItems(){
   h += '</div>';
   h += '<div style="font-size:12px;color:var(--c-text2);margin-top:6px">※No.を空欄にすると末尾に追加。番号を指定するとその位置に挿入され、以降の番号は自動で繰り下がります(常に1から連番に整理されます)。</div>';
   h += '</div>';
-  h += '<div style="font-size:13px;color:var(--c-text2);margin-bottom:8px">登録済み点検項目 ('+items.length+'件)</div>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
+  h += '<div style="font-size:13px;color:var(--c-text2)">登録済み点検項目 ('+items.length+'件)</div>';
+  h += '<button class="btn sm primary" id="btn-reorder" '+(ed && items.length > 1 ? '' : 'disabled')+'>↕ ドラッグで並び替え</button>';
+  h += '</div>';
   items.forEach(function(it){
     h += '<div class="item-mgr item-mgr-photo">';
     h += '<div class="item-row-no" style="font-size:14px;font-weight:500;text-align:center">'+it.no+'</div>';
@@ -2752,6 +2786,248 @@ function renderItems(){
     h += '</div></div>';
   });
   return h;
+}
+
+// ============================================================
+// 項目の並び替え(ドラッグ)
+// ============================================================
+// 項目管理の「↕ ドラッグで並び替え」で開く。No. を1つずつ打ち直さなくても、
+// 「≡」をつかんで上下に動かせば並べ替えられる。
+//  ・指(タッチ)でもマウスでも動かせる。「≡」以外の所は、いつもどおりスクロールできる。
+//  ・画面の上か下の端まで運ぶと自動でスクロールする(長い一覧の端から端へ運べるように)。
+//  ・動かすたびに No. を付け直して見せる。「この順で保存」を押すまでサーバへは送らない。
+//  ・▲▼ でも1つずつ動かせる(細かい調整や、ドラッグしにくい端末向け)。
+// STATE.reorder = { mid, ids: いまの並び(項目id), orig: 始めたときの並び, changed } / null
+var reorderDrag = null;   // ドラッグ中の状態 { row, list, y, touchId, raf }
+
+function startReorder(){
+  if(!STATE.editMode) return;
+  var ids = itemsInNoOrder().map(function(it){ return it.id; });
+  STATE.reorder = { mid: STATE.machineId, ids: ids.slice(), orig: ids, changed: false };
+  render();
+  // 一覧の先頭が、上に貼り付く操作欄のすぐ下に来るようにする。操作欄は貼り付いていると
+  // 位置が画面の上端のままなので、位置は一覧の側で測る。
+  var bar = el('reorder-bar'), list = el('reorder-list');
+  if(bar && list) window.scrollTo(0, Math.max(0, list.getBoundingClientRect().top + window.pageYOffset - bar.offsetHeight - 20));
+  // 右下の「↑」ボタンは、スマホでは ▼ に重なって押し間違えるので、並び替えの間は隠す
+  var tb = el('scrolltop-btn');
+  if(tb) tb.style.display = 'none';
+}
+
+// 並び替えの途中の順で、いまの項目を並べる。並び替えの間に「最新を取得」で
+// 他の端末の変更が入っても、消えた項目は除き、増えた項目は末尾に足す。
+function reorderList(){
+  var r = STATE.reorder, byId = {}, out = [];
+  var items = itemsInNoOrder();
+  // まだ何も動かしていなければ、いまの(最新を取得した後の)順で取り直す。始めたときの順の
+  // ままだと、他の端末の並び替えを知らずに、保存で元に戻してしまうため
+  if(!r.changed){ r.orig = items.map(function(it){ return it.id; }); r.ids = r.orig.slice(); }
+  items.forEach(function(it){ byId[it.id] = it; });
+  r.ids.forEach(function(id){ if(byId[id]){ out.push(byId[id]); delete byId[id]; } });
+  items.forEach(function(it){ if(byId[it.id]) out.push(it); });
+  return out;
+}
+
+function renderReorder(){
+  var r = STATE.reorder, m = getMachine();
+  var h = '<div class="reorder-bar" id="reorder-bar">';
+  h += '<div class="reorder-bar-text"><b>↕ '+esc(m.name)+'の項目を並び替え</b><br>「≡」をつかんで上下へ動かします。画面の上か下の端まで運ぶと自動でスクロールします。▲▼でも1つずつ動かせます。</div>';
+  h += '<div class="reorder-bar-btns">';
+  h += '<span class="reorder-state" id="reorder-state">'+(r.changed ? '未保存の変更があります' : 'まだ変更はありません')+'</span>';
+  h += '<button class="btn sm" id="btn-reorder-cancel">キャンセル</button>';
+  h += '<button class="btn sm primary" id="btn-reorder-save" '+(r.changed ? '' : 'disabled')+'>💾 この順で保存</button>';
+  h += '</div></div>';
+  h += '<div class="reorder-list" id="reorder-list">';
+  reorderList().forEach(function(it, i){
+    h += '<div class="reorder-row" data-reorder-id="'+esc(it.id)+'">';
+    h += '<div class="reorder-grip" title="つかんで上下に動かす" aria-label="つかんで上下に動かす">≡</div>';
+    h += '<div class="reorder-no">'+(i+1)+'</div>';
+    h += '<div class="reorder-body"><div><span class="row-place">'+esc(it.place)+'</span>'+(it.side?'<span class="row-side">'+esc(it.side)+'</span>':'')+'</div>';
+    h += '<div class="reorder-content">'+esc(it.content)+'</div></div>';
+    h += '<button type="button" class="reorder-step" data-reorder-step="-1" aria-label="1つ上へ">▲</button>';
+    h += '<button type="button" class="reorder-step" data-reorder-step="1" aria-label="1つ下へ">▼</button>';
+    h += '</div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function attachReorderHandlers(){
+  if(el('btn-reorder-cancel')) el('btn-reorder-cancel').onclick = cancelReorder;
+  if(el('btn-reorder-save')) el('btn-reorder-save').onclick = saveReorder;
+  var list = el('reorder-list');
+  if(!list) return;
+  var rows = list.children;
+  for(var i=0;i<rows.length;i++){
+    (function(row){
+      var grip = row.querySelector('.reorder-grip');
+      // タッチ: 「≡」の上で始まったときだけ、ページのスクロールを止めてドラッグにする
+      grip.addEventListener('touchstart', function(e){
+        if(reorderDrag || e.touches.length !== 1) return;
+        e.preventDefault();
+        reorderGrab(row, e.changedTouches[0].clientY, e.changedTouches[0].identifier);
+      }, { passive: false });
+      grip.addEventListener('mousedown', function(e){
+        if(reorderDrag || e.button !== 0) return;
+        e.preventDefault();
+        reorderGrab(row, e.clientY, null);
+      });
+      var steps = row.querySelectorAll('[data-reorder-step]');
+      for(var j=0;j<steps.length;j++){
+        steps[j].onclick = (function(dir){ return function(){ reorderStep(row, dir); }; })(Number(steps[j].getAttribute('data-reorder-step')));
+      }
+    })(rows[i]);
+  }
+}
+
+// つかむ。以後は指(マウス)の高さ y を追いかけ、毎フレーム reorderTick で行を動かす
+function reorderGrab(row, y, touchId){
+  reorderDrag = { row: row, list: row.parentNode, y: y, startY: y, free: false, touchId: touchId, raf: 0 };
+  row.className += ' dragging';
+  document.body.className += ' reorder-dragging';
+  if(touchId !== null){
+    document.addEventListener('touchmove', reorderTouchMove, { passive: false });
+    document.addEventListener('touchend', reorderTouchEnd);
+    document.addEventListener('touchcancel', reorderTouchEnd);
+  } else {
+    document.addEventListener('mousemove', reorderMouseMove);
+    document.addEventListener('mouseup', reorderDrop);
+  }
+  window.addEventListener('blur', reorderDrop);   // 別のウィンドウへ移ったら離したことにする
+  reorderTick();
+}
+function reorderTouchOf(list){
+  for(var i=0;i<list.length;i++){ if(list[i].identifier === reorderDrag.touchId) return list[i]; }
+  return null;
+}
+function reorderTouchMove(e){
+  if(!reorderDrag) return;
+  e.preventDefault();   // ドラッグ中はページをスクロールさせない(端での自動スクロールに任せる)
+  var t = reorderTouchOf(e.touches);
+  if(t) reorderDrag.y = t.clientY;
+}
+function reorderTouchEnd(e){
+  if(reorderDrag && reorderTouchOf(e.changedTouches)) reorderDrop();
+}
+function reorderMouseMove(e){
+  if(!reorderDrag) return;
+  // ボタンを押していないのに動いている = 離したこと(mouseup)を取りこぼした。つかんだままにしない
+  if(e.buttons === 0){ reorderDrop(); return; }
+  e.preventDefault();
+  reorderDrag.y = e.clientY;
+}
+
+function reorderTick(){
+  var d = reorderDrag;
+  if(!d) return;
+  if(!document.body.contains(d.row)){ reorderDrop(); return; }   // 画面が描き直された
+  // 上下の端に近いほど速く自動スクロールする。上の端は、上に貼り付いている操作欄の下から数える
+  var bar = el('reorder-bar');
+  var top = bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
+  var bottom = window.innerHeight;
+  // ただし、端の近くの行をつかんだだけでは動かさない。一度でも端の帯の外へ出たあとか、
+  // 帯の中でその向きへ 10px 以上動かしたときだけ自動スクロールする
+  // (押さえただけで一覧が流れ、行が思わぬ所へ動くのを防ぐ)
+  var zone = 70, speed = 0;
+  if(d.y >= top + zone && d.y <= bottom - zone) d.free = true;
+  if(d.y < top + zone && (d.free || d.y < d.startY - 10)) speed = -Math.ceil(Math.min(1, (top + zone - d.y) / zone) * 20);
+  else if(d.y > bottom - zone && (d.free || d.y > d.startY + 10)) speed = Math.ceil(Math.min(1, (d.y - (bottom - zone)) / zone) * 20);
+  if(speed) window.scrollBy(0, speed);
+  reorderPlace(d);
+  d.raf = requestAnimationFrame(reorderTick);
+}
+
+// 指(マウス)の高さに合わせて、つかんだ行を入れ替える。
+// 前の行の真ん中より上に来たら前へ、次の行の真ん中より下に来たら後ろへ(何行分でも)。
+function reorderPlace(d){
+  var row = d.row, moved = false, prev = row.previousElementSibling, next = row.nextElementSibling;
+  while(prev && d.y < reorderMid(prev)){ d.list.insertBefore(row, prev); prev = row.previousElementSibling; moved = true; }
+  if(!moved){
+    while(next && d.y > reorderMid(next)){ d.list.insertBefore(row, next.nextSibling); next = row.nextElementSibling; moved = true; }
+  }
+  if(moved) reorderSyncFromDom(d.list);
+}
+function reorderMid(elm){
+  var rc = elm.getBoundingClientRect();
+  return rc.top + rc.height / 2;
+}
+
+// 離す
+function reorderDrop(){
+  var d = reorderDrag;
+  if(!d) return;
+  // 動かした直後(次のフレームの前)に離されても、最後の位置を反映してから片付ける
+  if(document.body.contains(d.list) && document.body.contains(d.row)) reorderPlace(d);
+  reorderDrag = null;
+  if(d.raf) cancelAnimationFrame(d.raf);
+  document.removeEventListener('touchmove', reorderTouchMove, { passive: false });
+  document.removeEventListener('touchend', reorderTouchEnd);
+  document.removeEventListener('touchcancel', reorderTouchEnd);
+  document.removeEventListener('mousemove', reorderMouseMove);
+  document.removeEventListener('mouseup', reorderDrop);
+  window.removeEventListener('blur', reorderDrop);
+  d.row.className = d.row.className.replace(/\s*dragging/g, '');
+  document.body.className = document.body.className.replace(/\s*reorder-dragging/g, '');
+  if(document.body.contains(d.list)) reorderSyncFromDom(d.list);
+}
+
+// ▲▼ で1つずつ動かす
+function reorderStep(row, dir){
+  var list = row.parentNode;
+  if(dir < 0 && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+  else if(dir > 0 && row.nextElementSibling) list.insertBefore(row, row.nextElementSibling.nextSibling);
+  else return;
+  reorderSyncFromDom(list);
+  // 動かした行が、上の操作欄の裏や画面の外へ隠れないようにする
+  var bar = el('reorder-bar');
+  var top = bar ? bar.getBoundingClientRect().bottom : 0;
+  var rc = row.getBoundingClientRect();
+  if(rc.top < top || rc.bottom > window.innerHeight) window.scrollBy(0, rc.top - (top + window.innerHeight) / 2);
+}
+
+// 画面の並びを STATE.reorder に写し、No. と「未保存」の表示を付け直す。
+// 動かすたびに写しておくので、ドラッグの途中で画面が描き直されても並びは失われない。
+function reorderSyncFromDom(list){
+  var r = STATE.reorder;
+  if(!r) return;
+  var rows = list.children, ids = [];
+  for(var i=0;i<rows.length;i++){
+    ids.push(rows[i].getAttribute('data-reorder-id'));
+    var no = rows[i].querySelector('.reorder-no');
+    if(no) no.textContent = String(i+1);
+  }
+  r.ids = ids;
+  r.changed = ids.join('\n') !== r.orig.join('\n');
+  var st = el('reorder-state');
+  if(st) st.textContent = r.changed ? '未保存の変更があります' : 'まだ変更はありません';
+  var sv = el('btn-reorder-save');
+  if(sv) sv.disabled = !r.changed;
+}
+
+function saveReorder(){
+  var r = STATE.reorder;
+  if(!r || r.mid !== STATE.machineId || !STATE.editMode) return;
+  var list = reorderList();
+  renumber(list);
+  STATE.reorder = null;
+  saveItems(list);
+}
+
+function cancelReorder(){
+  var r = STATE.reorder;
+  if(!r) return;
+  if(r.changed && !confirm('並び替えた順を破棄しますか?')) return;
+  STATE.reorder = null;
+  render();
+}
+
+// 並び替えの途中で別の画面へ移るとき。保存していない変更があれば確かめ、移るなら並び替えをやめる
+function confirmLeaveReorder(){
+  var r = STATE.reorder;
+  if(!r) return true;
+  if(r.changed && !confirm('並び替えを保存していません。\n変更を破棄して移動しますか?')) return false;
+  STATE.reorder = null;
+  return true;
 }
 
 function renderEditModal(){
@@ -3636,6 +3912,8 @@ function attachHandlers(){
   for(var i=0;i<pts.length;i++){ pts[i].onclick = (function(id){ return function(){ openPointHist(id); }; })(pts[i].getAttribute('data-point')); }
   if(el('point-search')){ el('point-search').oninput = function(){ var q=this.value.toLowerCase(); var rows=document.querySelectorAll('.point-row'); for(var i=0;i<rows.length;i++){ var s=rows[i].getAttribute('data-search')||''; rows[i].style.display = (!q || s.indexOf(q)>=0)?'':'none'; } }; }
   // 項目タブ
+  if(el('btn-reorder')) el('btn-reorder').onclick = startReorder;
+  attachReorderHandlers();
   if(el('btn-additem')) el('btn-additem').onclick = addItem;
   if(el('new-content')) el('new-content').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addItem(); };
   if(el('new-no')) el('new-no').onkeydown = function(e){ if(e.key==='Enter'&&STATE.editMode) addItem(); };
@@ -3691,7 +3969,7 @@ function updateSyncBar(){
 // 見ていないため、キューに積まれた・送信中のジョブも条件に含める。
 // (GASへの往復は数秒かかり、その間に閉じられると送信が中断される)
 window.addEventListener('beforeunload', function(e){
-  if(pendingData || saveTimer || hasPendingIssueSave() || unsentCount() > 0 || cmHasUnsaved()){
+  if(pendingData || saveTimer || hasPendingIssueSave() || unsentCount() > 0 || cmHasUnsaved() || (STATE.reorder && STATE.reorder.changed)){
     e.preventDefault();
     e.returnValue = '保存中のデータがあります。このまま閉じますか?';
     return e.returnValue;
@@ -3709,7 +3987,7 @@ function initScrollTop(){
   btn.onclick = function(){ window.scrollTo({ top:0, behavior:'smooth' }); };
   document.body.appendChild(btn);
   var onScroll = function(){
-    if(document.querySelector('.modal-bg')){ btn.style.display='none'; return; }
+    if(document.querySelector('.modal-bg') || STATE.reorder){ btn.style.display='none'; return; }
     var y = window.pageYOffset || document.documentElement.scrollTop || 0;
     btn.style.display = y > 300 ? 'flex' : 'none';
   };
