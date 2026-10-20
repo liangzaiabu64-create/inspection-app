@@ -96,20 +96,51 @@
   /* 対策: 点検行のボタンと、× の行に出す要約 */
   .cm-line { margin-top: 8px; }
   .cm-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; font-size: 13px; font-weight: 500; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text2); cursor: pointer; font-family: var(--font); }
-  .cm-btn.has { background: var(--c-info-bg); color: var(--c-info); border-color: var(--c-info-bd); }
+  /* 対策済 = 濃い青、記入途中 = オレンジの枠、未登録 = 点線 */
+  .cm-btn.has.done { background: var(--c-info); color: #fff; border-color: var(--c-info); }
+  .cm-btn.has.partial { background: var(--c-bg); color: var(--c-warn); border: 2px solid #ef9f27; }
   .cm-btn.none { color: var(--c-text3); border-style: dashed; font-weight: 400; }
-  .check-row.is-ng .cm-btn.has { background: var(--c-info); color: #fff; border-color: var(--c-info); }
   .cm-count { font-size: 12px; font-weight: 400; }
+  .cm-chip { display: inline-block; font-size: 12px; font-weight: 500; line-height: 1.5; padding: 1px 8px; border: 1px solid transparent; border-radius: 999px; white-space: nowrap; vertical-align: middle; }
+  .cm-chip.done { background: var(--c-info); color: #fff; }
+  .cm-chip.partial { background: var(--c-warn-bg); color: var(--c-warn); border: 1px solid #ef9f27; }
+  .cm-chip.blank { background: var(--c-bg2); color: var(--c-text3); }
   .cm-hint { margin-bottom: 8px; padding: 8px 10px; background: var(--c-info-bg); border: 1px solid var(--c-info-bd); border-radius: var(--r-md); cursor: pointer; }
+  .cm-hint.partial { background: var(--c-warn-bg); border-color: #ef9f27; }
   .cm-hint-head { font-size: 12px; font-weight: 500; color: var(--c-info); margin-bottom: 2px; }
+  .cm-hint.partial .cm-hint-head { color: var(--c-warn); }
   .cm-hint-text { font-size: 14px; color: var(--c-text); line-height: 1.5; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  /* 1 組 1 行に収める(nowrap だと点検行の幅が広がってしまうので、行数で切る) */
+  .cm-hint-pair { font-size: 14px; color: var(--c-text); line-height: 1.5; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .cm-hint-todo { color: var(--c-warn); }
+  .cm-hint-more { font-size: 12px; color: var(--c-text2); }
 
   /* 対策: ダイアログ */
   .cm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
   .cm-head-content { font-size: 14px; margin-top: 2px; color: var(--c-text2); word-break: break-word; }
   .cm-head > .btn { flex-shrink: 0; white-space: nowrap; }
   .cm-text-view { white-space: pre-wrap; word-break: break-word; font-size: 15px; line-height: 1.7; padding: 12px; background: var(--c-bg2); border-radius: var(--r-md); margin-bottom: 12px; }
-  .cm-modal textarea#cm-text { min-height: 140px; resize: vertical; }
+  .cm-modal textarea[data-cm-method] { min-height: 110px; resize: vertical; }
+  /* 対策: 対策済・記入途中の帯と、確認箇所と対策方法の組 */
+  .cm-status { padding: 10px 12px; border-radius: var(--r-md); font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+  .cm-status.done { background: var(--c-info); color: #fff; }
+  .cm-status.partial { background: var(--c-warn-bg); color: var(--c-warn); border: 1px solid #ef9f27; }
+  .cm-status span { display: block; font-size: 13px; font-weight: 400; margin-top: 2px; }
+  .cm-pairs-title { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .cm-pair { border: 1px solid var(--c-bd); border-left: 5px solid var(--c-info); border-radius: var(--r-md); padding: 10px 12px; margin-bottom: 12px; }
+  .cm-pair.partial { border-left-color: #ef9f27; }
+  .cm-pair.blank { border-left-color: var(--c-bd2); }
+  .cm-pair-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .cm-pair-no { font-size: 12px; font-weight: 500; color: var(--c-text2); white-space: nowrap; }
+  .cm-pair-place { font-size: 16px; font-weight: 500; word-break: break-word; }
+  .cm-modal .cm-pair-label { display: block; font-size: 12px; color: var(--c-text2); margin: 0 0 4px; }
+  .cm-pair .cm-text-view { margin-bottom: 8px; }
+  .cm-pair .cm-photos { margin-bottom: 0; }
+  .cm-text-view.cm-todo { color: var(--c-warn); background: var(--c-warn-bg); font-size: 14px; }
+  .cm-none { color: var(--c-text3); font-weight: 400; }
+  .cm-pair-del { margin-left: auto; height: 34px; padding: 0 10px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-danger); font-size: 13px; cursor: pointer; font-family: var(--font); }
+  .cm-pair-del:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cm-add-pair { width: 100%; margin-bottom: 16px; border-style: dashed; }
   .cm-modal select { width: 100%; height: 44px; padding: 0 10px; font-size: 15px; border: 1px solid var(--c-bd2); border-radius: var(--r-md); background: var(--c-bg); color: var(--c-text); font-family: var(--font); margin-bottom: 12px; }
   .cm-counter { float: right; font-size: 12px; color: var(--c-text3); }
   .cm-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
@@ -256,7 +287,9 @@
     .reorder-row { grid-template-columns: 44px 28px 1fr 40px 40px; gap: 4px; padding: 6px; }
     .reorder-content { font-size: 15px; }
     .cm-btn { min-height: 44px; font-size: 15px; padding: 6px 14px; }
-    .cm-hint-text { font-size: 15px; }
+    .cm-hint-text, .cm-hint-pair { font-size: 15px; }
+    .cm-pair { padding: 10px; }
+    .cm-modal .cm-pair-label { font-size: 13px; }
     .cm-photo img, .cm-photo-add { height: 96px; }
     /* 使用部品はスマホでは 2 段(品名 / 型式・数量・✕) */
     .cm-rows-part .cm-row-edit { grid-template-columns: 1fr 64px 40px; }
@@ -577,7 +610,7 @@ var STATE = {
   // サーバが対策機能に対応しているか(古い apps_script.gs だと loadAll が対策を返さない)。
   // null はまだ読み込めていない(起動時の通信失敗など)。古いサーバと区別して案内を変える。
   cmServerReady: null,
-  cmVersion: 0,         // サーバの対策機能の版(2 以上なら使用部品・使用工具・注意事項を保存できる)
+  cmVersion: 0,         // サーバの対策機能の版(2: 使用部品・使用工具・注意事項、3: 確認箇所ごとの組と写真。編集は 3 以上)
   date: todayStr(),
   editMode: false,
   sync: { state:'idle', message:'', at:null },
@@ -1270,18 +1303,25 @@ function openPhotoModal(photoId){
 // ============================================================
 // 対策: 点検で × になったときの対策方法と写真
 // ============================================================
-// 点検項目ごとに「対策方法(文章)」と「写真(最大3枚)」を登録し、点検中に見られるようにする。
+// 点検項目ごとに「確認箇所」と「対策方法」の組(＋ で足せる。10 組まで)と組ごとの写真(1 組 3 枚まで)、
+// 使用部品・使用工具・注意事項を登録し、点検中に見られるようにする。
 //  ・見るのはいつでもできる。登録・変更は編集モードのときだけ(○×の入力と同じ)。
-//  ・保存先はサーバのシート「NID対策」「仕込み対策」(1項目1行)。
+//  ・保存先はサーバのシート「NID対策」「仕込み対策」(1項目1行)。組は「対策方法」の欄に
+//    見出し付きの文章で書き、組ごとの写真は「写真の割り当て」の欄に書く(apps_script.gs の説明を参照)。
+//  ・どの組にも対策方法が書けていれば「対策済」、対策方法がまだの組があれば「記入途中」と出す。
 //  ・保存は「対策」ダイアログの保存ボタンでその場で送る(点検記録の保存キューとは別)。
 //    送れなかったときは入力をダイアログに残し、もう一度保存を押せば送り直せる。
-var CM_MAX_TEXT = 2000;   // 対策方法の文字数の上限(サーバ側と同じ)
-var CM_MAX_PHOTOS = 3;    // 写真の上限(サーバ側と同じ)
-var CM_MAX_NOTES = 1000;  // 注意事項の文字数の上限(サーバ側と同じ)
-var CM_MAX_ROWS = 20;     // 使用部品・使用工具それぞれの行数の上限(サーバ側と同じ)
+var CM_MAX_TEXT = 5000;      // 確認箇所と対策方法(全部の組を文章にしたもの)の文字数の上限(サーバ側と同じ)
+var CM_MAX_PAIRS = 10;       // 確認箇所の組の数の上限(サーバ側と同じ)
+var CM_MAX_PAIR_PHOTOS = 3;  // 確認箇所 1 つあたりの写真の上限(サーバ側と同じ)
+var CM_MAX_PLACE = 100;      // 確認箇所の文字数の上限
+var CM_MAX_NOTES = 1000;     // 注意事項の文字数の上限(サーバ側と同じ)
+var CM_MAX_ROWS = 20;        // 使用部品・使用工具それぞれの行数の上限(サーバ側と同じ)
 // 使用部品・使用工具の欄 [キー, 文字数の上限, 見出し](キーと上限はサーバ側と同じ)
 var CM_PART_FIELDS = [['name', 100, '品名'], ['model', 100, '型式・品番'], ['qty', 20, '数量']];
 var CM_TOOL_FIELDS = [['name', 100, '名称'], ['size', 50, 'サイズ']];
+var CM_PAIR_NO = '①②③④⑤⑥⑦⑧⑨⑩';
+function cmPairNo(i){ return i < CM_PAIR_NO.length ? CM_PAIR_NO.charAt(i) : '('+(i+1)+')'; }
 // サーバと同じ形にそろえる(改行を \n に、制御文字と前後の空白を除く)。送る前と比べる前に使う
 function cmCleanText(s){
   return String(s == null ? '' : s).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/^\s+|\s+$/g, '');
@@ -1299,26 +1339,155 @@ function cmCleanRows(rows, fields){
   });
   return out;
 }
-// 使用部品・使用工具・注意事項を保存できるサーバか(古い apps_script.gs は保存しないので、入力欄を出さない)
-function cmRichReady(){ return STATE.cmServerReady === true && STATE.cmVersion >= 2; }
-// 内容の目印(競合の相手が自分の前回の保存かを見分けるときに比べる)
-function cmContentSig(text, photoCount, parts, tools, notes){
-  return JSON.stringify([text, photoCount, cmCleanRows(parts, CM_PART_FIELDS), cmCleanRows(tools, CM_TOOL_FIELDS), cmCleanText(notes)]);
+// 確認箇所ごとの写真を保存できるサーバか(古い apps_script.gs では組ごとの写真が消えてしまうので、編集させない)
+function cmEditReady(){ return STATE.cmServerReady === true && STATE.cmVersion >= 3; }
+// 内容の目印(競合の相手が自分の前回の保存かを見分けるときに比べる)。photoCounts は組ごとの写真の枚数
+function cmContentSig(text, photoCounts, parts, tools, notes){
+  return JSON.stringify([text, photoCounts, cmCleanRows(parts, CM_PART_FIELDS), cmCleanRows(tools, CM_TOOL_FIELDS), cmCleanText(notes)]);
 }
+
+// ---- 確認箇所と対策方法の組 ⇔ シートに書く文章 ----
+//  組が 1 つで確認箇所が空のときは、対策方法をそのまま書く(以前の形。以前のデータもこの形で読める)。
+//  それ以外は 1 組ずつ「【確認箇所n】確認箇所」「【対策方法】対策方法」と書き、組の間を 1 行空ける。
+//  対策方法の中で見出しと同じ書き出しの行は、頭に全角の空白を 1 つ足して見出しと区別する(読むときに外す)。
+// 行の残りは [\s\S]* で取る(. だと U+2028 などの文字を含む行が見出しと読めなくなる)
+var CM_HEAD_RE = /^【確認箇所([0-9０-９]*)】([\s\S]*)$/;
+var CM_METHOD_RE = /^【対策方法】([\s\S]*)$/;
+var CM_ESC_RE = /^(　*)【(確認箇所|対策方法)/;
+function cmEscapeLines(s){
+  return s.split('\n').map(function(line){ return CM_ESC_RE.test(line) ? '　' + line : line; }).join('\n');
+}
+function cmUnescapeLine(line){ return /^　+【(確認箇所|対策方法)/.test(line) ? line.substring(1) : line; }
+// 見出しを付けずに書く組か(組が 1 つで確認箇所が空。対策方法が見出しと同じ書き出しなら見出しを付ける)
+function cmIsPlainForm(pairs){
+  return pairs.length === 1 && !pairs[0].place && !CM_ESC_RE.test(pairs[0].method);
+}
+// pairs: 整えた組 [{ place, method }]
+function cmPairsToText(pairs){
+  if(pairs.length === 0) return '';
+  if(cmIsPlainForm(pairs)) return cmEscapeLines(pairs[0].method);
+  return pairs.map(function(p, i){
+    return '【確認箇所'+(i+1)+'】'+p.place+'\n【対策方法】'+cmEscapeLines(p.method);
+  }).join('\n\n');
+}
+// 文章 → 組 [{ place, method, num, lead }]。シートを直接直した文章も読めるよう、ゆるく読む
+//  num : 見出し【確認箇所n】の n(無ければ null)
+//  lead: 最初の見出しより前の文章(確認箇所の無い組にする。見出しが 1 つも無い以前の形もこれ)
+function cmTextToPairs(text){
+  var lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
+  var pre = [], heads = [], cur = null;
+  for(var i=0;i<lines.length;i++){
+    var h = CM_HEAD_RE.exec(lines[i]);
+    if(h){
+      var digits = h[1].replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+      cur = { place: h[2], lines: [], method: false, num: digits ? Number(digits) : null };
+      heads.push(cur);
+      continue;
+    }
+    if(!cur){ pre.push(lines[i]); continue; }
+    var mm = cur.method ? null : CM_METHOD_RE.exec(lines[i]);
+    if(mm){ cur.method = true; cur.lines.push(mm[1]); continue; }
+    cur.lines.push(lines[i]);
+  }
+  var out = [];
+  var first = cmCleanText(pre.map(cmUnescapeLine).join('\n'));
+  if(first) out.push({ place: '', method: first, num: null, lead: true });
+  heads.forEach(function(p){
+    out.push({ place: cmCleanText(p.place), method: cmCleanText(p.lines.map(cmUnescapeLine).join('\n')), num: p.num, lead: false });
+  });
+  return out;
+}
+// 登録されている対策を組の一覧にする [{ place, method, photoIds }](何も無い組は除く)
+//  写真の割り当ての n 行目は、見出し【確認箇所n】の組の写真(この画面は見出しを 1 から順に書く)。
+//  古い画面やシートの直接編集で組が消えたり前に文章が足されたりしても、写真が別の組へずれないよう、
+//  並び順ではなく見出しの番号で合わせる。番号が無い・重なるときだけ見出しの順で合わせる。
+//  見出しが 1 つも無い(以前の形)ときは、1 行目の写真をその組に。
+//  割り当ての無い写真(この画面が以前の形で保存した写真、古い画面で足した写真など)は 1 組目に出す。
+//  合う組の無い行の写真(組の文章が消された写真)や、1 組 3 枚を超える分は、確認箇所の無い
+//  写真だけの組にして後ろに出す(1 組目に混ぜると、3 枚を超えて写真を消さないと保存できなくなる)。
+function cmPairsOf(cm){
+  if(!cm) return [];
+  var pairs = cmTextToPairs(cm.text);
+  var ids = cm.photoIds || [], map = cm.photoMap || [], used = {}, target = {}, seen = {};
+  var heads = pairs.filter(function(p){ return !p.lead; });
+  var byNum = heads.every(function(p){
+    if(!(p.num >= 1) || seen[p.num]) return false;
+    seen[p.num] = true;
+    return true;
+  });
+  if(heads.length === 0){ if(pairs.length) target[0] = pairs[0]; }
+  else heads.forEach(function(p, k){ target[byNum ? p.num - 1 : k] = p; });
+  pairs.forEach(function(p){ p.photoIds = []; });
+  var extra = [];
+  // p に入るだけ入れ、入らない分(p が無ければ全部)は写真だけの組にする
+  function putPhotos(p, list){
+    var room = p ? Math.max(0, CM_MAX_PAIR_PHOTOS - p.photoIds.length) : 0;
+    if(p) p.photoIds = p.photoIds.concat(list.slice(0, room));
+    for(var k=room;k<list.length;k+=CM_MAX_PAIR_PHOTOS) extra.push({ place: '', method: '', photoIds: list.slice(k, k + CM_MAX_PAIR_PHOTOS) });
+  }
+  map.forEach(function(g, i){
+    var got = [];
+    (g || []).forEach(function(id){
+      if(ids.indexOf(id) >= 0 && !used[id]){ used[id] = true; got.push(id); }
+    });
+    putPhotos(target[i], got);
+  });
+  var rest = ids.filter(function(id){ return !used[id]; });
+  if(rest.length){
+    if(!pairs.length) pairs.push({ place: '', method: '', photoIds: [] });
+    putPhotos(pairs[0], rest);
+  }
+  var out = [];
+  pairs.concat(extra).forEach(function(p){
+    if(p.place || p.method || p.photoIds.length) out.push({ place: p.place, method: p.method, photoIds: p.photoIds });
+  });
+  return out;
+}
+
+// ---- 対策済・記入途中 ----
+// 組の状態: 'done' 対策方法あり / 'partial' 確認箇所か写真だけで対策方法がまだ / 'blank' 何も無い
+// (クラス名にも使う。'empty' はページ共通の .empty の見た目が付いてしまうので使わない)
+function cmPairState(place, method, photoCount){
+  return method ? 'done' : (place || photoCount) ? 'partial' : 'blank';
+}
+// 項目の対策の状態
+//  'done'    対策済: 対策方法の書けた組が 1 つ以上あり、対策方法がまだの組が無い
+//  'partial' 記入途中: 何か書いてあるが対策済ではない(対策方法がまだの組がある、部品・工具・注意事項だけ など)
+//  'none'    未登録
+function cmStatus(cm){
+  if(!cm) return 'none';
+  var done = 0, partial = 0;
+  cmPairsOf(cm).forEach(function(p){
+    var s = cmPairState(p.place, p.method, p.photoIds.length);
+    if(s === 'done') done++;
+    else if(s === 'partial') partial++;
+  });
+  if(done && !partial) return 'done';
+  if(done || partial || (cm.parts && cm.parts.length) || (cm.tools && cm.tools.length) || cm.notes) return 'partial';
+  return 'none';
+}
+function cmChipHTML(state){
+  if(state === 'done') return '<span class="cm-chip done">✓ 対策済</span>';
+  if(state === 'partial') return '<span class="cm-chip partial">△ 記入途中</span>';
+  return '<span class="cm-chip blank">未記入</span>';
+}
+
 // 写真ID → この端末で縮小した画像。保存した直後は Drive 側のサムネイルが
 // まだ作られておらず表示できないことがあるため、手元の画像を代わりに出す。
 var cmPreviewCache = {};
 // 開いている対策ダイアログの状態(同時に開くのは1つだけ)。閉じているときは null。
 //  mid / itemId : 対象の設備と項目
 //  editing      : 編集中か
-//  draft        : 編集中の内容 { text, keep:[写真ID], added:[縮小画像], updatedBy, baseRev, saveId, retryable }
-//  original     : 編集を始めたときの内容(変更があるかの判定用)
+//  draft        : 編集中の内容 { pairs:[{ place, method, keep:[写真ID], added:[縮小画像] }], parts, tools, notes,
+//                 updatedBy, baseRev, saveId, retryable, ... }
+//  original     : 編集を始めたときの内容の目印(変更があるかの判定用)
+//  photoTarget  : 写真を足す組の番号(写真を選ぶ画面を開いたとき)
 //  saving       : 送信中か(送信中は閉じられない)
 //  busy         : 写真の縮小中などの表示文言
 //  message      : { type:'ok'|'error'|'conflict', text } 画面下部に出す知らせ
 //  conflict     : 他の端末が先に保存していたときの、その最新の内容
 var cmModal = null;
-// 設備|項目 → { 保存ID: そのとき送った文章と写真の枚数 }。下書きを開き直しても、
+// 設備|項目 → { 保存ID: そのとき送った内容の目印 }。下書きを開き直しても、
 // 競合の相手が「応答の届かなかった自分の前回の保存」かを見分けられるように、項目ごとに持つ。
 var cmSentLog = {};
 // 設備|項目 → true: この端末から送った保存が届いたか確認できないまま、下書きを閉じた項目。
@@ -1333,18 +1502,16 @@ function getCountermeasure(itemId, mid){
   var all = STATE.allCountermeasures[mid || STATE.machineId] || {};
   return all[itemId] || null;
 }
-// 文章か写真のどちらかがあれば「登録あり」
-function cmHasContent(cm){
-  return !!(cm && (cm.text || (cm.photoIds && cm.photoIds.length) || (cm.parts && cm.parts.length) || (cm.tools && cm.tools.length) || cm.notes));
-}
-// 文章が無いときの短い説明(× の行の要約に使う)
+// 何か書いてあれば「登録あり」
+function cmHasContent(cm){ return cmStatus(cm) !== 'none'; }
+// 対策方法が無いときの短い説明(× の行の要約に使う)
 function cmSummaryText(cm){
   var a = [];
   if(cm.parts && cm.parts.length) a.push('使用部品 '+cm.parts.length+'件');
   if(cm.tools && cm.tools.length) a.push('使用工具 '+cm.tools.length+'件');
   if(cm.notes) a.push('注意事項あり');
   if(cm.photoIds && cm.photoIds.length) a.push('写真 '+cm.photoIds.length+'枚');
-  return '('+a.join('・')+')';
+  return a.length ? '('+a.join('・')+')' : '';
 }
 function cmPhotoSrc(photoId, thumb){ return cmPreviewCache[photoId] || photoUrl(photoId, thumb); }
 function cmFindItem(mid, itemId){
@@ -1353,25 +1520,42 @@ function cmFindItem(mid, itemId){
   return null;
 }
 
-// 点検行の「対策」ボタン
+// 点検行の「対策」ボタン。対策済は濃い青、記入途中はオレンジの枠
 function cmButtonHTML(it){
   var cm = getCountermeasure(it.id);
-  if(cmHasContent(cm)){
+  var st = cmStatus(cm);
+  if(st !== 'none'){
     var n = cm.photoIds ? cm.photoIds.length : 0;
-    return '<button type="button" class="cm-btn has" data-cm="'+esc(it.id)+'">🛠 対策を見る'+(n?' <span class="cm-count">📷'+n+'</span>':'')+'</button>';
+    return '<button type="button" class="cm-btn has '+st+'" data-cm="'+esc(it.id)+'">'+
+      (st === 'done' ? '✓ 対策済' : '△ 記入途中')+(n?' <span class="cm-count">📷'+n+'</span>':'')+'</button>';
   }
   // 読み込めていないときは「未登録」と言い切らない(登録済みかもしれない)
   if(STATE.cmServerReady === null) return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策(未取得)</button>';
   return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策'+(STATE.editMode?'を登録':' 未登録')+'</button>';
 }
 
-// × の行に出す、登録済みの対策の冒頭(タップで全文と写真)。未登録なら何も出さない。
+// × の行に出す、登録済みの対策の要約(確認箇所の一覧。タップで全文と写真)。未登録なら何も出さない。
 function cmNgHintHTML(it){
   var cm = getCountermeasure(it.id);
-  if(!cmHasContent(cm)) return '';
-  return '<div class="cm-hint" data-cm="'+esc(it.id)+'" role="button" tabindex="0">'+
-    '<div class="cm-hint-head">🛠 登録されている対策(タップで写真と全文)</div>'+
-    '<div class="cm-hint-text">'+(cm.text ? esc(cm.text) : esc(cmSummaryText(cm)))+'</div></div>';
+  var st = cmStatus(cm);
+  if(st === 'none') return '';
+  var pairs = cmPairsOf(cm), body;
+  if(pairs.length === 1 && !pairs[0].place){
+    // 確認箇所の無い 1 組だけ(以前の形): 対策方法の冒頭
+    body = '<div class="cm-hint-text">'+esc(pairs[0].method || cmSummaryText(cm))+'</div>';
+  } else if(pairs.length){
+    body = '<div class="cm-hint-list">';
+    pairs.slice(0, 3).forEach(function(p, i){
+      body += '<div class="cm-hint-pair">'+cmPairNo(i)+' '+(p.place ? esc(p.place) : '(確認箇所 未記入)')+
+        (p.method ? '：'+esc(p.method.split('\n')[0]) : ' <span class="cm-hint-todo">(対策方法 未記入)</span>')+'</div>';
+    });
+    if(pairs.length > 3) body += '<div class="cm-hint-more">ほか '+(pairs.length - 3)+' 件</div>';
+    body += '</div>';
+  } else {
+    body = '<div class="cm-hint-text">'+esc(cmSummaryText(cm))+'</div>';
+  }
+  return '<div class="cm-hint '+st+'" data-cm="'+esc(it.id)+'" role="button" tabindex="0">'+
+    '<div class="cm-hint-head">🛠 登録されている対策 '+cmChipHTML(st)+'(タップで写真と全文)</div>'+body+'</div>';
 }
 
 // 点検行の中の「対策」ボタン・要約にハンドラを付ける
@@ -1392,7 +1576,7 @@ function openCountermeasure(itemId){
   var mid = STATE.machineId;
   if(!cmFindItem(mid, itemId)) return;
   if(cmModal) return;   // 既に開いている(二重タップ)
-  cmModal = { mid: mid, itemId: itemId, editing: false, draft: null, original: null, saving: false, busy: '', message: null, conflict: null };
+  cmModal = { mid: mid, itemId: itemId, editing: false, draft: null, original: null, photoTarget: 0, saving: false, busy: '', message: null, conflict: null };
   var div = document.createElement('div');
   div.className = 'modal-bg';
   div.id = 'cm-modal';
@@ -1431,13 +1615,29 @@ function cmHasUnsaved(){
   return cmDraftChanged(m) || !!(m.draft && m.draft.unconfirmed);
 }
 
+function cmEmptyPair(){ return { place: '', method: '', keep: [], added: [] }; }
+// 保存する組(確認箇所・対策方法を整え、何も無い組を除く)
+function cmKeptPairs(d){
+  var out = [];
+  d.pairs.forEach(function(p){
+    var place = cmCleanText(p.place).replace(/\n/g, ' '), method = cmCleanText(p.method);
+    if(place || method || p.keep.length || p.added.length) out.push({ place: place, method: method, keep: p.keep, added: p.added });
+  });
+  return out;
+}
+// 下書きの内容の目印(変更があるかの判定用。何も書いていない組は保存しないので含めない)
+function cmDraftSig(d){
+  return JSON.stringify([cmKeptPairs(d).map(function(p){ return [p.place, p.method, p.keep]; }),
+    cmCleanRows(d.parts, CM_PART_FIELDS), cmCleanRows(d.tools, CM_TOOL_FIELDS), cmCleanText(d.notes), d.updatedBy]);
+}
 function cmDraftChanged(m){
-  var d = m.draft, o = m.original;
-  if(!d || !o) return false;
-  return d.text !== o.text || d.updatedBy !== o.updatedBy || d.added.length > 0 || d.keep.join(',') !== o.keep.join(',') ||
-    JSON.stringify(cmCleanRows(d.parts, CM_PART_FIELDS)) !== o.parts ||
-    JSON.stringify(cmCleanRows(d.tools, CM_TOOL_FIELDS)) !== o.tools ||
-    cmCleanText(d.notes) !== o.notes;
+  var d = m.draft;
+  if(!d || m.original == null) return false;
+  return d.pairs.some(function(p){ return p.added.length > 0; }) || cmDraftSig(d) !== m.original;
+}
+// 入力欄の値の目印(写真の画像は大きいので含めない)
+function cmFormSig(d){
+  return JSON.stringify([d.pairs.map(function(p){ return [p.place, p.method]; }), d.notes, d.parts, d.tools, d.updatedBy]);
 }
 
 // 文章と記入者は入力のたびに描き直さない(カーソルが飛ぶため)。描き直す前や保存の前に、ここで控える。
@@ -1445,9 +1645,9 @@ function cmReadDraftFromForm(){
   var m = cmModal;
   if(!m || !m.draft) return;
   var d = m.draft;
-  var before = JSON.stringify([d.text, d.notes, d.parts, d.tools, d.updatedBy]);
-  var ta = el('cm-text');
-  if(ta) d.text = ta.value;
+  var before = cmFormSig(d);
+  cmReadPairFields('data-cm-place', 'place', d.pairs);
+  cmReadPairFields('data-cm-method', 'method', d.pairs);
   var nt = el('cm-notes');
   if(nt) d.notes = nt.value;
   cmReadRows('data-cm-part', d.parts);
@@ -1455,7 +1655,14 @@ function cmReadDraftFromForm(){
   var by = el('cm-by');
   if(by) d.updatedBy = by.value;
   // 入力を変えたら別の保存(同じ保存IDで送り直すのは、何も変えずに送り直すときだけ)
-  if(JSON.stringify([d.text, d.notes, d.parts, d.tools, d.updatedBy]) !== before) d.retryable = false;
+  if(cmFormSig(d) !== before) d.retryable = false;
+}
+function cmReadPairFields(attr, key, pairs){
+  var inputs = document.querySelectorAll('#cm-modal ['+attr+']');
+  for(var i=0;i<inputs.length;i++){
+    var p = pairs[Number(inputs[i].getAttribute(attr))];
+    if(p) p[key] = inputs[i].value;
+  }
 }
 // 使用部品・使用工具の入力欄の値を、下書きの行へ写す
 function cmReadRows(attr, rows){
@@ -1487,16 +1694,41 @@ function cmRemoveRow(kind, index){
   m.draft.retryable = false;
   renderCountermeasure();
 }
+// 確認箇所の組を足す・消す
+function cmAddPair(){
+  var m = cmModal;
+  if(!m || !m.draft || m.saving || m.busy) return;
+  cmReadDraftFromForm();
+  if(m.draft.pairs.length >= CM_MAX_PAIRS) return;
+  m.draft.pairs.push(cmEmptyPair());
+  renderCountermeasure();
+  var inp = el('cm-place-'+(m.draft.pairs.length-1));
+  if(inp) inp.focus();
+}
+function cmRemovePair(i){
+  var m = cmModal;
+  if(!m || !m.draft || m.saving || m.busy) return;
+  cmReadDraftFromForm();
+  var p = m.draft.pairs[i];
+  if(!p) return;
+  var place = cmCleanText(p.place).replace(/\n/g, ' '), photos = p.keep.length + p.added.length;
+  if((place || cmCleanText(p.method) || photos) &&
+     !confirm('確認箇所 '+cmPairNo(i)+(place ? '「'+place+'」' : '')+' を削除しますか?'+(photos ? '\n(この確認箇所の写真 '+photos+' 枚も外れます)' : ''))) return;
+  m.draft.pairs.splice(i, 1);
+  if(m.draft.pairs.length === 0) m.draft.pairs.push(cmEmptyPair());
+  m.draft.retryable = false;
+  renderCountermeasure();
+}
 
 // 編集を始める(新規登録も同じ)
 function cmStartEdit(){
   var m = cmModal;
-  if(!m || !STATE.editMode) return;
+  if(!m || !STATE.editMode || !cmEditReady()) return;
   var cm = getCountermeasure(m.itemId, m.mid) || {};
+  var pairs = cmPairsOf(cm).map(function(p){ return { place: p.place, method: p.method, keep: p.photoIds.slice(), added: [] }; });
+  if(pairs.length === 0) pairs.push(cmEmptyPair());
   m.draft = {
-    text: cm.text || '',
-    keep: (cm.photoIds || []).slice(),
-    added: [],
+    pairs: pairs,
     parts: cmCleanRows(cm.parts, CM_PART_FIELDS),
     tools: cmCleanRows(cm.tools, CM_TOOL_FIELDS),
     notes: cm.notes || '',
@@ -1505,26 +1737,26 @@ function cmStartEdit(){
     baseRev: cm.rev || 0,
     baseText: cm.text || '',
     basePhotoIds: (cm.photoIds || []).slice(),
+    basePhotoMap: (cm.photoMap || []).map(function(g){ return g.slice(); }),
     baseParts: cmCleanRows(cm.parts, CM_PART_FIELDS),
     baseTools: cmCleanRows(cm.tools, CM_TOOL_FIELDS),
     baseNotes: cm.notes || '',
     saveId: '',
     retryable: false,
-    // この項目で送った保存ID → そのとき送った文章と写真の枚数。競合の相手が
+    // この項目で送った保存ID → そのとき送った内容の目印。競合の相手が
     // 「応答の届かなかった自分の前回の保存」かを見分けるために使う(下書きを開き直しても残す)
     sent: cmSentLog[cmKey(m.mid, m.itemId)] || (cmSentLog[cmKey(m.mid, m.itemId)] = {}),
     // 送ったが、保存できたか確認できていない(通信断・時間切れ)。このあいだは
     // 「変更なし」とみなさず、元の文章に戻した場合も送る(サーバには送った内容が入っているかもしれないため)
     unconfirmed: false
   };
-  m.original = { text: m.draft.text, keep: m.draft.keep.slice(), updatedBy: m.draft.updatedBy,
-    parts: JSON.stringify(m.draft.parts), tools: JSON.stringify(m.draft.tools), notes: cmCleanText(m.draft.notes) };
+  m.original = cmDraftSig(m.draft);
   m.editing = true;
   m.busy = '';
   m.message = null;
   m.conflict = null;
   renderCountermeasure();
-  // 描き直しはスクロール位置を保つが、編集を始めるときは先頭(対策方法の欄)から見せる
+  // 描き直しはスクロール位置を保つが、編集を始めるときは先頭(1 つ目の確認箇所)から見せる
   var box = document.querySelector('#cm-modal .modal');
   if(box) box.scrollTop = 0;
 }
@@ -1548,17 +1780,18 @@ function cmCancelEdit(){
   cmLeaveEdit();
 }
 
-// 選んだ写真を縮小して追加する(1枚ずつ順に処理。スマホのメモリを使いすぎないように)
-function cmAddFiles(fileList){
+// 選んだ写真を縮小して、pi 番目の確認箇所に追加する(1枚ずつ順に処理。スマホのメモリを使いすぎないように)
+function cmAddFiles(fileList, pi){
   var m = cmModal;
   if(!m || !m.draft) return;
   cmReadDraftFromForm();
-  var draft = m.draft;   // 縮小が終わる前に下書きが捨てられたら、その写真は足さない
-  var room = CM_MAX_PHOTOS - draft.keep.length - draft.added.length;
+  var draft = m.draft, pair = draft.pairs[pi];   // 縮小が終わる前に下書きが捨てられたら、その写真は足さない
+  if(!pair) return;
+  var room = CM_MAX_PAIR_PHOTOS - pair.keep.length - pair.added.length;
   var files = [];
   for(var i=0;i<fileList.length && files.length<room;i++) files.push(fileList[i]);
   if(fileList.length > files.length){
-    alert('写真は1項目 '+CM_MAX_PHOTOS+' 枚までです。'+(files.length ? '先頭の '+files.length+' 枚だけ追加します。' : ''));
+    alert('写真は確認箇所ごとに '+CM_MAX_PAIR_PHOTOS+' 枚までです。'+(files.length ? '先頭の '+files.length+' 枚だけ追加します。' : ''));
   }
   if(files.length === 0) return;
   var k = 0;
@@ -1568,7 +1801,7 @@ function cmAddFiles(fileList){
     m.busy = '写真を処理中... ('+(k+1)+'/'+files.length+')';
     renderCountermeasure();
     shrinkImage(files[k], 1000, function(dataUrl){
-      if(cmModal === m && m.draft === draft){ draft.added.push(dataUrl); draft.retryable = false; }
+      if(cmModal === m && m.draft === draft && draft.pairs.indexOf(pair) >= 0){ pair.added.push(dataUrl); draft.retryable = false; }
       k++; next();
     }, function(e){
       alert(e.message);
@@ -1578,12 +1811,15 @@ function cmAddFiles(fileList){
   next();
 }
 
-function cmRemovePhoto(kind, index){
+// kind: 'keep' 登録済みの写真 / 'new' この編集で足した写真。pi: 確認箇所の番号、j: その中の何枚目か
+function cmRemovePhoto(kind, pi, j){
   var m = cmModal;
   if(!m || !m.draft || m.saving) return;
   cmReadDraftFromForm();
-  if(kind === 'keep') m.draft.keep.splice(index, 1);
-  else m.draft.added.splice(index, 1);
+  var p = m.draft.pairs[pi];
+  if(!p) return;
+  if(kind === 'keep') p.keep.splice(j, 1);
+  else p.added.splice(j, 1);
   m.draft.retryable = false;
   renderCountermeasure();
 }
@@ -1608,6 +1844,11 @@ function cmFailureText(msg){
   return '保存できませんでした: '+msg+'\n入力した内容は残っています。';
 }
 
+function cmSaveError(m, text){
+  m.message = { type:'error', text: text };
+  renderCountermeasure();
+}
+
 // 保存する。force: 他の端末の更新を承知で上書きする(競合の知らせから押されたとき)
 function cmSave(force){
   var m = cmModal;
@@ -1619,6 +1860,7 @@ function cmSave(force){
     d.baseRev = m.conflict.rev || 0;
     d.baseText = m.conflict.text || '';
     d.basePhotoIds = (m.conflict.photoIds || []).slice();
+    d.basePhotoMap = (m.conflict.photoMap || []).map(function(g){ return g.slice(); });
     d.baseParts = cmCleanRows(m.conflict.parts, CM_PART_FIELDS);
     d.baseTools = cmCleanRows(m.conflict.tools, CM_TOOL_FIELDS);
     d.baseNotes = m.conflict.notes || '';
@@ -1627,23 +1869,35 @@ function cmSave(force){
     cmLeaveEdit({ type:'ok', text:'変更はありませんでした' });
     return;
   }
-  var rich = cmRichReady();
-  var text = cmCleanText(d.text);
-  var parts = rich ? cmCleanRows(d.parts, CM_PART_FIELDS) : [];
-  var tools = rich ? cmCleanRows(d.tools, CM_TOOL_FIELDS) : [];
-  var notes = rich ? cmCleanText(d.notes) : '';
+  if(!cmEditReady()){
+    cmSaveError(m, 'サーバ(Apps Script)が古い版のため保存できません。apps_script.gs を更新して新しいバージョンでデプロイしてください。\n入力した内容は残っています。');
+    return;
+  }
+  var kept = cmKeptPairs(d);
+  var text = cmPairsToText(kept);
+  var parts = cmCleanRows(d.parts, CM_PART_FIELDS);
+  var tools = cmCleanRows(d.tools, CM_TOOL_FIELDS);
+  var notes = cmCleanText(d.notes);
+  if(kept.length > CM_MAX_PAIRS){
+    cmSaveError(m, '確認箇所は '+CM_MAX_PAIRS+' 個までです(現在 '+kept.length+' 個)。');
+    return;
+  }
+  for(var i=0;i<d.pairs.length;i++){
+    if(d.pairs[i].keep.length + d.pairs[i].added.length > CM_MAX_PAIR_PHOTOS){
+      cmSaveError(m, '写真は確認箇所ごとに '+CM_MAX_PAIR_PHOTOS+' 枚までです。確認箇所 '+cmPairNo(i)+' の写真を減らしてください。');
+      return;
+    }
+  }
   if(text.length > CM_MAX_TEXT){
-    m.message = { type:'error', text:'対策方法は '+CM_MAX_TEXT+' 文字以内にしてください(現在 '+text.length+' 文字)' };
-    renderCountermeasure();
+    cmSaveError(m, '確認箇所と対策方法は合計 '+CM_MAX_TEXT+' 文字以内にしてください(現在 '+text.length+' 文字)');
     return;
   }
   if(notes.length > CM_MAX_NOTES){
-    m.message = { type:'error', text:'注意事項は '+CM_MAX_NOTES+' 文字以内にしてください(現在 '+notes.length+' 文字)' };
-    renderCountermeasure();
+    cmSaveError(m, '注意事項は '+CM_MAX_NOTES+' 文字以内にしてください(現在 '+notes.length+' 文字)');
     return;
   }
-  if(!text && d.keep.length === 0 && d.added.length === 0 && !parts.length && !tools.length && !notes &&
-     !confirm('対策の内容(手順・部品・工具・注意事項・写真)がすべて空です。\nこの項目の対策を削除しますか?')) return;
+  if(!kept.length && !parts.length && !tools.length && !notes &&
+     !confirm('対策の内容(確認箇所・対策方法・部品・工具・注意事項・写真)がすべて空です。\nこの項目の対策を削除しますか?')) return;
   // 送ったのに応答が届かなかった保存をもう一度送るときは、同じ保存IDを使う。
   // サーバは同じIDの保存を二重に行わない(写真が二重にできない)。
   // 入力を変えたあとは別の保存なので、新しいIDにする。
@@ -1651,25 +1905,33 @@ function cmSave(force){
     d.saveId = 'cm_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*1e9).toString(36);
   }
   d.retryable = true;
-  d.sent[d.saveId] = cmContentSig(text, d.keep.length + d.added.length, parts, tools, notes);
+  // 写真: 残す写真の ID と新しい写真を 1 列に並べ、組ごとの割り当て('k:写真ID' / 'n:新しい写真の番号')を添える
+  var keepIds = [], added = [], photoMap = [], counts = [];
+  kept.forEach(function(p){
+    var g = [];
+    p.keep.forEach(function(id){ keepIds.push(id); g.push('k:'+id); });
+    p.added.forEach(function(src){ g.push('n:'+added.length); added.push(src); });
+    photoMap.push(g);
+    counts.push(g.length);
+  });
+  // 見出しを付けずに書くときは割り当てを空にする(割り当ての無い写真は 1 組目に出る)。
+  // 1 行目に書くと、あとで文章に【確認箇所1】が足されたとき、写真がそちらへ移ってしまうため
+  if(cmIsPlainForm(kept)) photoMap = [];
+  d.sent[d.saveId] = cmContentSig(text, counts, parts, tools, notes);
   m.saving = true;
   m.conflict = null;
-  m.message = { type:'progress', text: d.added.length ? '写真をアップロードして保存中...(しばらくお待ちください)' : '保存中...' };
+  m.message = { type:'progress', text: added.length ? '写真('+added.length+'枚)をアップロードして保存中...(しばらくお待ちください)' : '保存中...' };
   renderCountermeasure();
-  var added = d.added.slice();
   // 項目情報はサーバの項目マスタが空のとき(初期項目のまま運用)だけ使われる
   var it = cmFindItem(m.mid, m.itemId) || {};
   var body = {
-    machineId: m.mid, itemId: m.itemId, text: text, keepPhotoIds: d.keep.slice(), newImages: added,
-    baseRev: d.baseRev, baseText: d.baseText, basePhotoIds: d.basePhotoIds.slice(),
+    machineId: m.mid, itemId: m.itemId, text: text, keepPhotoIds: keepIds, newImages: added, photoMap: photoMap,
+    parts: parts, tools: tools, notes: notes,
+    baseRev: d.baseRev, baseText: d.baseText, basePhotoIds: d.basePhotoIds.slice(), basePhotoMap: d.basePhotoMap,
+    baseParts: d.baseParts, baseTools: d.baseTools, baseNotes: d.baseNotes,
     updatedBy: d.updatedBy, saveId: d.saveId,
     item: { no: it.no, place: it.place, side: it.side, content: it.content }
   };
-  // 使用部品・使用工具・注意事項は、保存できるサーバのときだけ送る(送らなければサーバは今のまま変えない)
-  if(rich){
-    body.parts = parts; body.tools = tools; body.notes = notes;
-    body.baseParts = d.baseParts; body.baseTools = d.baseTools; body.baseNotes = d.baseNotes;
-  }
   postGAS('saveCountermeasure', body, function(res){
     m.saving = false;
     // 応答が来たので、サーバの中身が分かった(保存できた、または最新の内容を受け取った)
@@ -1677,7 +1939,7 @@ function cmSave(force){
     delete cmUnconfirmed[cmKey(m.mid, m.itemId)];
     if(res.conflict){
       // 先に保存されていた。入力は残し、最新の内容を知らせて選んでもらう
-      var cur = res.current || { text:'', photoIds:[], updatedBy:'', updatedAt:'', rev:0 };
+      var cur = res.current || { text:'', photoIds:[], photoMap:[], updatedBy:'', updatedAt:'', rev:0 };
       STATE.allCountermeasures[m.mid][m.itemId] = cur;
       cmRefreshRow(m.mid, m.itemId);
       d.retryable = false;
@@ -1685,7 +1947,8 @@ function cmSave(force){
       // 先に保存したのが、応答の届かなかった自分の前回の保存か。その後シートで直接直されて
       // いることもあるので、送った内容がそのまま残っているときだけ「自分の保存」とみなす
       var mySent = res.currentSaveId ? d.sent[res.currentSaveId] : null;
-      var mine = !!(mySent && mySent === cmContentSig(cur.text || '', (cur.photoIds || []).length, cur.parts, cur.tools, cur.notes));
+      var curCounts = cmPairsOf(cur).map(function(p){ return p.photoIds.length; });
+      var mine = !!(mySent && mySent === cmContentSig(cur.text || '', curCounts, cur.parts, cur.tools, cur.notes));
       m.message = { type:'conflict', mine: mine };
       if(cmModal === m) renderCountermeasure();
       return;
@@ -1708,7 +1971,7 @@ function cmSave(force){
     if(cmOutcomeUnknown(e.message)) d.unconfirmed = true;
     m.message = { type:'error', text: cmFailureText(e.message) };
     if(cmModal === m) renderCountermeasure();
-  }, 90000);  // 写真3枚を遅い回線で送ることもあるので長めに待つ
+  }, Math.min(300000, 90000 + 20000 * Math.max(0, added.length - 3)));  // 写真が多いときは遅い回線を考えて長めに待つ
 }
 
 // 競合の知らせから「最新の内容を見る」: 自分の入力を捨てて、最新を表示する
@@ -1758,10 +2021,58 @@ function cmMessageHTML(m){
       '<div class="cm-msg-btns">'+
       '<button type="button" class="btn sm" id="cm-latest">最新の内容を見る(入力を破棄)</button>'+
       '<button type="button" class="btn sm warning" id="cm-force">この入力で上書き保存</button></div>'+
-      (msg.mine ? '' : '<div class="cm-msg-note">上書きすると、他の端末で書かれた変更(手順・部品・工具・注意事項・写真)は消えます。</div>')+'</div>';
+      (msg.mine ? '' : '<div class="cm-msg-note">上書きすると、他の端末で書かれた変更(確認箇所・対策方法・部品・工具・注意事項・写真)は消えます。</div>')+'</div>';
   }
   return '<div class="cm-msg '+msg.type+'">'+esc(msg.text)+'</div>';
 }
+
+// 閲覧: 対策済・記入途中の帯
+function cmStatusBannerHTML(st, pairs){
+  if(st === 'done') return '<div class="cm-status done">✓ 対策済</div>';
+  var why = pairs.length ? '対策方法がまだ書かれていない確認箇所があります' : '確認箇所と対策方法がまだ書かれていません';
+  return '<div class="cm-status partial">△ 記入途中<span>'+why+'</span></div>';
+}
+
+// 閲覧: 確認箇所と対策方法の組 1 つ
+function cmPairViewHTML(p, i, n){
+  var st = cmPairState(p.place, p.method, p.photoIds.length);
+  var h = '<div class="cm-pair '+st+'">';
+  // 確認箇所の無い 1 組だけ(以前の形)のときは、確認箇所の見出しを出さない
+  if(n > 1 || p.place){
+    h += '<div class="cm-pair-head"><span class="cm-pair-no">確認箇所 '+cmPairNo(i)+'</span>'+
+      '<span class="cm-pair-place">'+(p.place ? esc(p.place) : '<span class="cm-none">(未記入)</span>')+'</span>'+cmChipHTML(st)+'</div>';
+  }
+  h += '<div class="cm-pair-label">対策方法</div>';
+  h += p.method ? '<div class="cm-text-view">'+esc(p.method)+'</div>' : '<div class="cm-text-view cm-todo">まだ書かれていません</div>';
+  if(p.photoIds.length){
+    h += '<div class="cm-pair-label">写真(タップで拡大)</div><div class="cm-photos">';
+    p.photoIds.forEach(function(id){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', ''); });
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+// 編集: 確認箇所と対策方法の組 1 つ
+function cmPairEditHTML(p, i, n, saving, dis){
+  var count = p.keep.length + p.added.length;
+  var st = cmPairState(cmCleanText(p.place), cmCleanText(p.method), count);
+  var h = '<div class="cm-pair edit '+st+'" id="cm-pair-'+i+'">';
+  h += '<div class="cm-pair-head"><span class="cm-pair-no">確認箇所 '+cmPairNo(i)+'</span><span id="cm-chip-'+i+'">'+cmChipHTML(st)+'</span>';
+  if(n > 1) h += '<button type="button" class="cm-pair-del" data-cm-del-pair="'+i+'" aria-label="確認箇所 '+cmPairNo(i)+' を削除"'+dis+'>✕ 削除</button>';
+  h += '</div>';
+  h += '<input type="text" id="cm-place-'+i+'" data-cm-place="'+i+'" maxlength="'+CM_MAX_PLACE+'" placeholder="確認箇所(例: エアー圧力計、モーター右側)" value="'+esc(p.place)+'"'+dis+'>';
+  h += '<label for="cm-method-'+i+'" class="cm-pair-label">対策方法</label>';
+  // <textarea> の直後の改行は HTML の読み取りで 1 つ捨てられる。先頭が改行の文章を保つため、改行を 1 つ足す
+  h += '<textarea id="cm-method-'+i+'" data-cm-method="'+i+'" maxlength="'+CM_MAX_TEXT+'" placeholder="この確認箇所が × のときの確認手順・処置などを記入"'+dis+'>\n'+esc(p.method)+'</textarea>';
+  h += '<div class="cm-pair-label">写真('+count+' / '+CM_MAX_PAIR_PHOTOS+' 枚)</div><div class="cm-photos">';
+  p.keep.forEach(function(id, j){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', saving ? '' : 'data-cm-del-keep="'+i+':'+j+'"'); });
+  p.added.forEach(function(src, j){ h += cmPhotoTileHTML(src, 'data-cm-view-new="'+i+':'+j+'"', saving ? '' : 'data-cm-del-new="'+i+':'+j+'"'); });
+  if(count < CM_MAX_PAIR_PHOTOS){
+    h += '<button type="button" class="cm-photo-add" data-cm-add-photo="'+i+'"'+dis+'>📷<br>写真を追加</button>';
+  }
+  return h + '</div></div>';
+}
+function cmCounterText(d){ return '合計 '+cmPairsToText(cmKeptPairs(d)).length+' / '+CM_MAX_TEXT+' 文字'; }
 
 function renderCountermeasure(){
   var m = cmModal;
@@ -1782,25 +2093,25 @@ function renderCountermeasure(){
     if(cmUnconfirmed[cmKey(m.mid, m.itemId)]){
       h += '<div class="cm-msg warn">この端末から送った保存が、サーバに届いたか確認できていません。下の内容は古い可能性があります。「🔄 最新を取得」を押すと、サーバの内容が表示されます。</div>';
     }
-    if(cmHasContent(cm)){
+    var st = cmStatus(cm);
+    if(st !== 'none'){
+      var pairs = cmPairsOf(cm);
+      h += cmStatusBannerHTML(st, pairs);
+      pairs.forEach(function(p, i){ h += cmPairViewHTML(p, i, pairs.length); });
       // 空の欄は出さない
-      if(cm.text) h += '<label>対策方法(手順)</label><div class="cm-text-view">'+esc(cm.text)+'</div>';
       if(cm.parts && cm.parts.length) h += cmRowsViewHTML('使用部品', cm.parts, CM_PART_FIELDS);
       if(cm.tools && cm.tools.length) h += cmRowsViewHTML('使用工具', cm.tools, CM_TOOL_FIELDS);
       if(cm.notes) h += '<label>注意事項</label><div class="cm-notes-view">⚠ '+esc(cm.notes)+'</div>';
-      if(cm.photoIds && cm.photoIds.length){
-        h += '<label>写真(タップで拡大)</label><div class="cm-photos">';
-        cm.photoIds.forEach(function(id){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', ''); });
-        h += '</div>';
-      }
       h += '<div class="cm-meta">最終更新: '+esc(cm.updatedAt || '—')+(cm.updatedBy ? ' / 記入者: '+esc(cm.updatedBy) : '')+'</div>';
     } else if(STATE.cmServerReady !== null){
       h += '<div class="empty" style="padding:28px 12px">この項目の対策はまだ登録されていません</div>';
     }
     h += cmMessageHTML(m);
     h += '<div class="cm-foot">';
-    if(STATE.editMode && STATE.cmServerReady){
-      h += '<button type="button" class="btn primary" id="cm-edit">'+(cmHasContent(cm) ? '✏ 対策を編集' : '＋ 対策を登録')+'</button>';
+    if(STATE.editMode && cmEditReady()){
+      h += '<button type="button" class="btn primary" id="cm-edit">'+(st !== 'none' ? '✏ 対策を編集' : '＋ 対策を登録')+'</button>';
+    } else if(STATE.editMode && STATE.cmServerReady === true){
+      h += '<div class="cm-msg warn" style="margin:0">確認箇所ごとの対策を登録・変更するには、apps_script.gs を新しい版に更新して新しいバージョンでデプロイしてください。</div>';
     } else if(!STATE.editMode){
       h += '<div class="cm-meta" style="margin:0">登録・変更は「✏ 編集モード」をONにしてから行えます</div>';
     }
@@ -1809,26 +2120,18 @@ function renderCountermeasure(){
     // ---- 編集 ----
     var d = m.draft;
     var dis = (m.saving || m.busy) ? ' disabled' : '';
-    var count = d.keep.length + d.added.length;
-    h += '<label for="cm-text">対策方法(手順) <span class="cm-counter" id="cm-counter">'+d.text.length+' / '+CM_MAX_TEXT+'</span></label>';
-    // <textarea> の直後の改行は HTML の読み取りで 1 つ捨てられる。先頭が改行の文章を保つため、改行を 1 つ足す
-    h += '<textarea id="cm-text" maxlength="'+CM_MAX_TEXT+'" placeholder="× のときの確認手順・処置などを記入"'+dis+'>\n'+esc(d.text)+'</textarea>';
-    if(cmRichReady()){
-      h += cmRowsEditorHTML('part', '使用部品', d.parts, CM_PART_FIELDS, dis);
-      h += cmRowsEditorHTML('tool', '使用工具', d.tools, CM_TOOL_FIELDS, dis);
-      h += '<label for="cm-notes">注意事項</label>';
-      h += '<textarea id="cm-notes" maxlength="'+CM_MAX_NOTES+'" placeholder="安全上の注意など(例: 必ず電源を切ってから作業する)"'+dis+'>\n'+esc(d.notes)+'</textarea>';
-    } else if(STATE.cmServerReady === true){
-      h += '<div class="cm-msg warn">使用部品・使用工具・注意事項を入れるには、apps_script.gs を新しい版に更新してください。</div>';
+    h += '<div class="cm-pairs-title">確認箇所と対策方法 <span class="cm-counter" id="cm-counter">'+cmCounterText(d)+'</span></div>';
+    d.pairs.forEach(function(p, i){ h += cmPairEditHTML(p, i, d.pairs.length, m.saving, dis); });
+    if(d.pairs.length < CM_MAX_PAIRS){
+      h += '<button type="button" class="btn cm-add-pair" id="cm-add-pair"'+dis+'>＋ 確認箇所を追加</button>';
+    } else {
+      h += '<div class="cm-meta">確認箇所は '+CM_MAX_PAIRS+' 個までです</div>';
     }
-    h += '<label>写真('+count+' / '+CM_MAX_PHOTOS+' 枚)</label><div class="cm-photos">';
-    d.keep.forEach(function(id, i){ h += cmPhotoTileHTML(cmPhotoSrc(id, true), 'data-cm-view="'+esc(id)+'"', m.saving ? '' : 'data-cm-del-keep="'+i+'"'); });
-    d.added.forEach(function(src, i){ h += cmPhotoTileHTML(src, 'data-cm-view-new="'+i+'"', m.saving ? '' : 'data-cm-del-new="'+i+'"'); });
-    if(count < CM_MAX_PHOTOS){
-      h += '<button type="button" class="cm-photo-add" id="cm-add"'+dis+'>📷<br>写真を追加</button>';
-    }
-    h += '</div>';
     h += '<input type="file" id="cm-file" accept="image/*" multiple style="display:none">';
+    h += cmRowsEditorHTML('part', '使用部品', d.parts, CM_PART_FIELDS, dis);
+    h += cmRowsEditorHTML('tool', '使用工具', d.tools, CM_TOOL_FIELDS, dis);
+    h += '<label for="cm-notes">注意事項</label>';
+    h += '<textarea id="cm-notes" maxlength="'+CM_MAX_NOTES+'" placeholder="安全上の注意など(例: 必ず電源を切ってから作業する)"'+dis+'>\n'+esc(d.notes)+'</textarea>';
     h += '<label for="cm-by">記入者</label>'+staffSelectHTML('cm-by', d.updatedBy, dis);
     if(m.busy) h += '<div class="cm-msg progress">'+esc(m.busy)+'</div>';
     h += cmMessageHTML(m);
@@ -1873,6 +2176,26 @@ function cmRowsEditorHTML(kind, title, rows, fields, dis){
   return h + '</div>';
 }
 
+// 確認箇所・対策方法を入力したとき: その組の「対策済・記入途中」と文字数だけ書き換える(描き直さない)
+function cmOnPairInput(i, key, value){
+  var m = cmModal;
+  if(!m || !m.draft) return;
+  var p = m.draft.pairs[i];
+  if(!p) return;
+  p[key] = value;
+  m.draft.retryable = false;
+  var st = cmPairState(cmCleanText(p.place), cmCleanText(p.method), p.keep.length + p.added.length);
+  var chip = el('cm-chip-'+i);
+  if(chip) chip.innerHTML = cmChipHTML(st);
+  var card = el('cm-pair-'+i);
+  if(card) card.className = 'cm-pair edit '+st;
+  var c = el('cm-counter');
+  if(c) c.textContent = cmCounterText(m.draft);
+}
+
+// "1:2" → [1, 2](確認箇所の番号と、その中の何枚目か)
+function cmPairPhotoIndex(s){ var a = String(s).split(':'); return [Number(a[0]), Number(a[1])]; }
+
 function attachCountermeasureModalHandlers(box){
   var m = cmModal;
   if(el('cm-close')) el('cm-close').onclick = requestCloseCountermeasure;
@@ -1881,17 +2204,25 @@ function attachCountermeasureModalHandlers(box){
   if(el('cm-save')) el('cm-save').onclick = function(){ cmSave(false); };
   if(el('cm-force')) el('cm-force').onclick = function(){ cmSave(true); };
   if(el('cm-latest')) el('cm-latest').onclick = cmDiscardForLatest;
-  var ta = el('cm-text');
-  if(ta){
-    ta.oninput = function(){
-      if(m && m.draft){ m.draft.text = ta.value; m.draft.retryable = false; }
-      var c = el('cm-counter'); if(c) c.textContent = ta.value.length+' / '+CM_MAX_TEXT;
-    };
+  if(el('cm-add-pair')) el('cm-add-pair').onclick = cmAddPair;
+  [['data-cm-place', 'place'], ['data-cm-method', 'method']].forEach(function(f){
+    var inputs = box.querySelectorAll('['+f[0]+']');
+    for(var a=0;a<inputs.length;a++){
+      inputs[a].oninput = (function(i){ return function(){ cmOnPairInput(i, f[1], this.value); }; })(Number(inputs[a].getAttribute(f[0])));
+    }
+  });
+  var delPairs = box.querySelectorAll('[data-cm-del-pair]');
+  for(var b=0;b<delPairs.length;b++){
+    delPairs[b].onclick = (function(i){ return function(){ cmRemovePair(i); }; })(Number(delPairs[b].getAttribute('data-cm-del-pair')));
   }
-  var add = el('cm-add'), file = el('cm-file');
-  if(add && file){
-    add.onclick = function(){ file.click(); };
-    file.onchange = function(){ var fl = this.files; if(fl && fl.length) cmAddFiles(fl); this.value = ''; };
+  // 写真の追加: 押した組を覚えてから、写真を選ぶ画面を開く
+  var file = el('cm-file');
+  if(file){
+    file.onchange = function(){ var fl = this.files; if(fl && fl.length && cmModal === m) cmAddFiles(fl, m.photoTarget); this.value = ''; };
+    var adds = box.querySelectorAll('[data-cm-add-photo]');
+    for(var c=0;c<adds.length;c++){
+      adds[c].onclick = (function(i){ return function(){ m.photoTarget = i; file.click(); }; })(Number(adds[c].getAttribute('data-cm-add-photo')));
+    }
   }
   var views = box.querySelectorAll('[data-cm-view]');
   for(var i=0;i<views.length;i++){
@@ -1899,15 +2230,18 @@ function attachCountermeasureModalHandlers(box){
   }
   var viewsNew = box.querySelectorAll('[data-cm-view-new]');
   for(var j=0;j<viewsNew.length;j++){
-    viewsNew[j].onclick = (function(i){ return function(){ if(m && m.draft && m.draft.added[i]) cmOpenImage(m.draft.added[i]); }; })(Number(viewsNew[j].getAttribute('data-cm-view-new')));
+    viewsNew[j].onclick = (function(ix){ return function(){
+      var p = m && m.draft && m.draft.pairs[ix[0]];
+      if(p && p.added[ix[1]]) cmOpenImage(p.added[ix[1]]);
+    }; })(cmPairPhotoIndex(viewsNew[j].getAttribute('data-cm-view-new')));
   }
   var delKeep = box.querySelectorAll('[data-cm-del-keep]');
   for(var k=0;k<delKeep.length;k++){
-    delKeep[k].onclick = (function(i){ return function(){ cmRemovePhoto('keep', i); }; })(Number(delKeep[k].getAttribute('data-cm-del-keep')));
+    delKeep[k].onclick = (function(ix){ return function(){ cmRemovePhoto('keep', ix[0], ix[1]); }; })(cmPairPhotoIndex(delKeep[k].getAttribute('data-cm-del-keep')));
   }
   var delNew = box.querySelectorAll('[data-cm-del-new]');
   for(var n=0;n<delNew.length;n++){
-    delNew[n].onclick = (function(i){ return function(){ cmRemovePhoto('new', i); }; })(Number(delNew[n].getAttribute('data-cm-del-new')));
+    delNew[n].onclick = (function(ix){ return function(){ cmRemovePhoto('new', ix[0], ix[1]); }; })(cmPairPhotoIndex(delNew[n].getAttribute('data-cm-del-new')));
   }
   // 使用部品・使用工具の行の追加・削除
   ['part', 'tool'].forEach(function(kind){
