@@ -20,9 +20,18 @@
   #wrap { max-width: 1100px; margin: 0 auto; background: var(--c-bg); border-radius: var(--r-lg); padding: 20px; min-height: 200px; }
 
   @media print {
+    /* 背景は白にする(iPhone などはページの背景色も印刷するため、画面用の色が帳票の周りに出てしまう) */
+    html, body { background: #fff !important; }
+    /* 帳票は画面の上に重ねず(absolute にせず)、アプリの画面を消して通常の流れで印刷する。
+       iPhone の Safari(WebKit)は absolute の中の改ページを無視するため、評価シートが別ページにならない */
+    body { padding: 0 !important; }
+    #wrap { max-width: none !important; margin: 0 !important; padding: 0 !important; border-radius: 0 !important; min-height: 0 !important; }
+    #root { display: none !important; }
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
-    #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+    /* 印刷のときは帳票を常に出す(.show の有無によらない)。iPhone の Safari は印刷画面を開いたまま
+       処理が進み、印刷画面で用紙サイズなどを変えると描き直すため、開いたあとで帳票を隠すと白紙になる */
+    #print-area { display: block !important; width: 100%; }
     .no-print { display: none !important; }
   }
   #print-area { display: none; }
@@ -615,6 +624,7 @@ var STATE = {
   editMode: false,
   sync: { state:'idle', message:'', at:null },
   printMonth: currentMonthStr(),
+  printEval: true,      // 月次印刷に「停止回避時間の評価シート」を付けるか
   editingItem: null,
   reorder: null,        // 項目の並び替え(ドラッグ)の途中の状態。renderReorder を参照
   staffNames: [],
@@ -2703,12 +2713,14 @@ function openDate(d){ flushSave(); STATE.date=d; STATE.tab='check'; render(); }
 // そのまま出すと、7月分を9月に印刷したときに8月以降の不具合が混ざり、
 // 7月末に未解決だった不具合が(その後完了していると)消えてしまう。
 // 未解決/完了は別々のリストに分かれて保持されているため、両方を突き合わせる。
-function allIssuesForReport(){
+// mid: 設備(省略すると今の設備)
+function allIssuesForReport(mid){
   // 同じidが未解決と完了済みの両方に残っている場合(過去の幽霊行など)は
   // 完了済み側を優先する。完了日を持つほうが状態として新しいため。
+  var m = mid || STATE.machineId;
   var out = [], seen = {};
-  getDoneIssues().forEach(function(is){ if(is.id && !seen[is.id]){ seen[is.id]=true; out.push(is); } });
-  getIssues().forEach(function(is){ if(!is.id || !seen[is.id]){ if(is.id) seen[is.id]=true; out.push(is); } });
+  (STATE.allDoneIssues[m] || []).forEach(function(is){ if(is.id && !seen[is.id]){ seen[is.id]=true; out.push(is); } });
+  (STATE.allIssues[m] || []).forEach(function(is){ if(!is.id || !seen[is.id]){ if(is.id) seen[is.id]=true; out.push(is); } });
   return out;
 }
 // 同じ項目の不具合が複数あれば1件にまとめる。帳票で同じNo.が何行も並ばないように
@@ -2736,9 +2748,9 @@ function openIssuesAsOf(ym){
   });
   return dedupeIssuesByItem(list).sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
 }
-// 対象月に完了した不具合
-function doneIssuesInMonth(ym){
-  var list = allIssuesForReport().filter(function(is){
+// 対象月に完了した不具合(mid: 設備。省略すると今の設備)
+function doneIssuesInMonth(ym, mid){
+  var list = allIssuesForReport(mid).filter(function(is){
     return !!is.doneDate && is.doneDate.substring(0,7) === ym;
   });
   return dedupeIssuesByItem(list).sort(function(a,b){ return (b.doneDate||'').localeCompare(a.doneDate||''); });
@@ -4224,6 +4236,9 @@ function renderMonthly(){
   h += '<button class="btn primary" id="btn-print">🖨 印刷 ('+m.paperSize+'横)</button>';
   if(xlsxOk) h += '<button class="btn success" id="btn-excel">📊 Excel(.xlsx)に変換</button>';
   h += '</div>';
+  h += '<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--c-text);cursor:pointer">'+
+    '<input type="checkbox" id="chk-eval"'+(STATE.printEval?' checked':'')+' style="width:20px;height:20px;margin:0;flex-shrink:0">'+
+    '停止回避時間の評価シートも印刷する(最後のページ。NID・仕込みの合計)</label>';
   if(!xlsxOk) h += '<p style="font-size:12px;color:var(--c-text2);margin-top:10px">※Excel変換は現環境では利用不可。印刷後にPDF保存、またはスプレッドシートから直接Excel出力をご利用ください。</p>';
   h += '</div>';
 
@@ -4381,8 +4396,86 @@ function buildPrintArea(){
   }
   h += '</div>';
 
+  // 停止回避時間の評価シート(改ページして最後のページに)
+  if(STATE.printEval && STATE.printMonth >= EVAL_START_MONTH){
+    h += '<div style="page-break-before:always;break-before:page">'+evalSheetHTML(STATE.printMonth)+'</div>';
+  }
+
   h += '</div>';
   el('print-area').innerHTML = h;
+}
+
+// ============================================================
+// 停止回避時間の評価シート(月次印刷の最後のページ)
+// ============================================================
+// 完了した不具合 1 件で設備の停止を 40 分防いだと換算し、アプリを使い始めた月から
+// 対象月までの件数と停止回避時間を NID・仕込みの合計で表にする。
+// 件数は「○月に完了した不具合一覧」と同じ数え方(完了日の月で数え、同じ月の同じ点検項目は 1 件)。
+var EVAL_START_MONTH = '2026-04';     // 集計を始める月
+var EVAL_MINUTES_PER_ISSUE = 40;      // 完了した不具合 1 件あたりの停止回避時間(分)
+// アプリにデータが無い月の完了件数(アプリを使う前の記録。いただいた件数)
+var EVAL_MANUAL_COUNTS = {
+  '2026-04': { nid: 5, shikomi: 0 },
+  '2026-05': { nid: 4, shikomi: 0 }
+};
+
+// 集計を始める月から untilYm(今月より先は今月まで)の各月の件数と時間
+function evalRows(untilYm){
+  var last = untilYm < currentMonthStr() ? untilYm : currentMonthStr();
+  var rows = [], cum = 0;
+  var p = EVAL_START_MONTH.split('-'), y = Number(p[0]), mo = Number(p[1]);
+  while(true){
+    var ym = y+'-'+pad(mo);
+    if(ym > last) break;
+    var man = EVAL_MANUAL_COUNTS[ym];
+    var nid = man ? man.nid : doneIssuesInMonth(ym, 'nid').length;
+    var shikomi = man ? man.shikomi : doneIssuesInMonth(ym, 'shikomi').length;
+    cum += nid + shikomi;
+    rows.push({ ym: ym, nid: nid, shikomi: shikomi, total: nid + shikomi, cum: cum,
+      minutes: (nid + shikomi) * EVAL_MINUTES_PER_ISSUE, cumMinutes: cum * EVAL_MINUTES_PER_ISSUE });
+    mo++; if(mo > 12){ mo = 1; y++; }
+  }
+  return rows;
+}
+
+function evalNum(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+function evalSheetHTML(untilYm){
+  var rows = evalRows(untilYm);
+  var th = 'border:1px solid #808080;padding:4pt 6pt;background:#d9e1f2;font-weight:bold;text-align:center;line-height:1.3';
+  var td = 'border:1px solid #808080;padding:3pt 6pt;text-align:right';
+  var h = '<div style="color:#000;font-family:sans-serif">';
+  h += '<div style="font-size:16pt;font-weight:bold;margin-bottom:2pt">日常点検アプリ 完了済み不具合件数と停止回避時間</div>';
+  h += '<div style="font-size:10.5pt;margin-bottom:10pt">停止回避時間: 完了済み不具合 1 件あたり '+EVAL_MINUTES_PER_ISSUE+' 分と換算(月ごと = 月合計 × '+EVAL_MINUTES_PER_ISSUE+' 分、累計 = 累計件数 × '+EVAL_MINUTES_PER_ISSUE+' 分)</div>';
+  h += '<table style="border-collapse:collapse;font-size:11pt;color:#000">';
+  h += '<thead><tr>';
+  h += '<th style="'+th+';width:46pt">月</th>';
+  h += '<th style="'+th+';width:70pt">NID<br>完了件数</th>';
+  h += '<th style="'+th+';width:70pt">仕込み<br>完了件数</th>';
+  h += '<th style="'+th+';width:58pt">月合計</th>';
+  h += '<th style="'+th+';width:58pt">累計</th>';
+  h += '<th style="'+th+';width:88pt">停止回避時間<br>月ごと(分)</th>';
+  h += '<th style="'+th+';width:88pt">停止回避時間<br>累計(分)</th>';
+  h += '</tr></thead><tbody>';
+  rows.forEach(function(r){
+    h += '<tr>';
+    h += '<td style="'+td+';text-align:center">'+Number(r.ym.split('-')[1])+'月</td>';
+    h += '<td style="'+td+'">'+r.nid+'</td>';
+    h += '<td style="'+td+'">'+r.shikomi+'</td>';
+    h += '<td style="'+td+'">'+r.total+'</td>';
+    h += '<td style="'+td+'">'+r.cum+'</td>';
+    h += '<td style="'+td+'">'+evalNum(r.minutes)+'</td>';
+    h += '<td style="'+td+'">'+evalNum(r.cumMinutes)+'</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  // 今月を印刷するときは、今日までの件数であることを書き添える
+  var today = todayStr();
+  var last = rows.length ? rows[rows.length - 1].ym : '';
+  h += '<div style="font-size:10.5pt;margin-top:10pt">※データ取得日: '+today+
+    (last === currentMonthStr() ? '('+Number(last.split('-')[1])+'月は '+Number(today.split('-')[2])+'日までの件数)' : '')+'</div>';
+  h += '</div>';
+  return h;
 }
 
 // ============================================================
@@ -4471,6 +4564,7 @@ function attachHandlers(){
   // 月次タブ
   if(el('inp-month')) el('inp-month').onchange = function(){ STATE.printMonth=this.value; render(); };
   if(el('btn-print')) el('btn-print').onclick = doPrintMonth;
+  if(el('chk-eval')) el('chk-eval').onchange = function(){ STATE.printEval = this.checked; };
   if(el('btn-excel')) el('btn-excel').onclick = exportExcel;
 }
 
