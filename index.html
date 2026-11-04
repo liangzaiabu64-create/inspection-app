@@ -234,11 +234,15 @@
 
   .print-config { padding: 18px; background: var(--c-info-bg); border: 1px solid var(--c-info-bd); border-radius: var(--r-lg); margin-bottom: 16px; }
 
-  .month-table { width: 100%; border-collapse: collapse; font-size: 7pt; font-family: sans-serif; color: #000; }
+  .month-table { width: 100%; border-collapse: collapse; font-size: 7pt; font-family: sans-serif; color: #000; table-layout: fixed; overflow-wrap: break-word; word-wrap: break-word; }
   .month-table th, .month-table td { border: 1px solid #333; padding: 1px 2px; }
   .month-table thead th { background: #d0d0d0; font-weight: bold; }
   .month-table .ok-cell { color: #060; font-weight: bold; text-align: center; font-size: 10pt; }
   .month-table .ng-cell { color: #c00; font-weight: bold; text-align: center; font-size: 10pt; background: #ffe8e8; }
+  /* 点検者・確認者: 改ページで 2 行が離れないよう、まとめて次のページへ送る。上の表と罫線を重ねる */
+  .month-sign { page-break-inside: avoid; break-inside: avoid; }
+  .month-sign .month-table { margin-top: -1px; }
+  .month-table .sign-cell { font-size: 6pt; line-height: 1.2; text-align: center; padding: 1px; }
 
   .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #e0e0e0; border-top-color: var(--c-info); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -4239,6 +4243,7 @@ function renderMonthly(){
   h += '<label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--c-text);cursor:pointer">'+
     '<input type="checkbox" id="chk-eval"'+(STATE.printEval?' checked':'')+' style="width:20px;height:20px;margin:0;flex-shrink:0">'+
     '停止回避時間の評価シートも印刷する(最後のページ。NID・仕込みの合計)</label>';
+  h += '<div style="margin-top:10px"><button class="btn" id="btn-print-eval">📄 停止回避時間シートだけ印刷(A4縦)</button></div>';
   if(!xlsxOk) h += '<p style="font-size:12px;color:var(--c-text2);margin-top:10px">※Excel変換は現環境では利用不可。印刷後にPDF保存、またはスプレッドシートから直接Excel出力をご利用ください。</p>';
   h += '</div>';
 
@@ -4253,7 +4258,9 @@ function renderMonthly(){
 function monthTableHTML(items, records, days, forPrint){
   var cols = getMonthColumns(STATE.machineId, STATE.printMonth);
   var isWeek = (STATE.machineId === 'shikomi');
-  var h = '<table'+(forPrint?' class="month-table"':' style="width:100%;border-collapse:collapse;font-size:9px;color:#000"')+'>';
+  // 印刷は列幅を決めておく(点検者・確認者の表と列をそろえるため。日の列もすべて同じ幅になる)
+  var colgroup = forPrint ? monthColgroupHTML(cols.length, isWeek) : '';
+  var h = '<table'+(forPrint?' class="month-table"':' style="width:100%;border-collapse:collapse;font-size:9px;color:#000"')+'>'+colgroup;
   h += '<thead><tr'+(forPrint?'':' style="background:#d0d0d0"')+'>';
   var th = forPrint ? '' : ' style="border:1px solid #333;padding:2px;text-align:center"';
   h += '<th'+th+'>No.</th><th'+th+'>場所</th><th'+th+'>側</th><th'+th+(forPrint?'':' style="border:1px solid #333;padding:2px;min-width:200px"')+'>点検内容</th>';
@@ -4288,8 +4295,16 @@ function monthTableHTML(items, records, days, forPrint){
     if(forPrint) h += '<td style="font-size:6pt">'+esc(notes.join(' / '))+'</td>';
     h += '</tr>';
   });
-  // 点検者・確認者行(印刷時のみ)
+  h += '</tbody></table>';
+  // 点検者・確認者(印刷時のみ)。表の途中で改ページされても 2 行が離れないよう、日付の見出しを付けた
+  // 別の表にして、まとめて次のページへ送る(表の行の改ページ禁止は iPhone の Safari が守らないため)
   if(forPrint){
+    h += '<div class="month-sign">';
+    h += '<table class="month-table">'+colgroup+'<thead><tr><th colspan="4"></th>';
+    cols.forEach(function(c){
+      h += '<th>'+(isWeek ? (c.label + (c.sub?'<br><span style="font-weight:400;font-size:5pt">'+c.sub+'</span>':'')) : c.label)+'</th>';
+    });
+    h += '<th></th></tr></thead><tbody>';
     ['点検者','確認者'].forEach(function(label,idx){
       h += '<tr><td colspan="4" style="font-weight:bold;text-align:center;padding:0 6px">'+label+'</td>';
       cols.forEach(function(c){
@@ -4304,13 +4319,25 @@ function monthTableHTML(items, records, days, forPrint){
           var nm = (idx===0?rec.inspector:rec.checker);
           if(nm){ name = nm; break; }
         }
-        h += '<td style="font-size:6pt;text-align:center">'+esc(name?name.slice(0,3):'')+'</td>';
+        // 氏名は 4 文字まで(日の列では 2 文字ずつ 2 行になる)
+        h += '<td class="sign-cell">'+esc(name ? name.replace(/\s+/g, '').slice(0,4) : '')+'</td>';
       });
       h += '<td></td></tr>';
     });
+    h += '</tbody></table></div>';
   }
-  h += '</tbody></table>';
   return h;
+}
+
+// 印刷する点検表の列幅。No.・場所・側・日(週)・備考の幅を決め、残りを点検内容にする。
+// No.・日(週)・備考は文字の大きさに合わせて pt で決める(紙の幅で割合にすると、印刷の仕方によっては
+// 番号や日付が 2 行に折れる)。場所・側は紙の幅に合わせて割合にする
+function monthColgroupHTML(nCols, isWeek){
+  var w = isWeek ? { no: '16pt', place: '6.7%', side: '9.2%', col: '40pt', note: '90pt' }
+                 : { no: '16pt', place: '4.6%', side: '2.4%', col: '15pt', note: '90pt' };
+  var h = '<colgroup><col style="width:'+w.no+'"><col style="width:'+w.place+'"><col style="width:'+w.side+'"><col>';
+  for(var i=0;i<nCols;i++) h += '<col style="width:'+w.col+'">';
+  return h + '<col style="width:'+w.note+'"></colgroup>';
 }
 
 function buildPrintArea(){
@@ -4440,22 +4467,31 @@ function evalRows(untilYm){
 
 function evalNum(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
+// 大きさは、Excel から作った PDF 版(A4 縦)と同じにする。文字・列幅・行の高さを pt で決めているので、
+// どの紙に印刷しても表は同じ大きさで出る(A4 縦の 1 枚だけを印刷すると PDF 版と同じ配置になる)
+var EVAL_COL_WIDTHS = [39, 58.6, 58.6, 48.8, 48.8, 73.2, 73.2];   // 月, NID, 仕込み, 月合計, 累計, 月ごと, 累計(分) の幅(pt)
 function evalSheetHTML(untilYm){
   var rows = evalRows(untilYm);
-  var th = 'border:1px solid #808080;padding:4pt 6pt;background:#d9e1f2;font-weight:bold;text-align:center;line-height:1.3';
-  var td = 'border:1px solid #808080;padding:3pt 6pt;text-align:right';
-  var h = '<div style="color:#000;font-family:sans-serif">';
-  h += '<div style="font-size:16pt;font-weight:bold;margin-bottom:2pt">日常点検アプリ 完了済み不具合件数と停止回避時間</div>';
-  h += '<div style="font-size:10.5pt;margin-bottom:10pt">停止回避時間: 完了済み不具合 1 件あたり '+EVAL_MINUTES_PER_ISSUE+' 分と換算(月ごと = 月合計 × '+EVAL_MINUTES_PER_ISSUE+' 分、累計 = 累計件数 × '+EVAL_MINUTES_PER_ISSUE+' 分)</div>';
-  h += '<table style="border-collapse:collapse;font-size:11pt;color:#000">';
-  h += '<thead><tr>';
-  h += '<th style="'+th+';width:46pt">月</th>';
-  h += '<th style="'+th+';width:70pt">NID<br>完了件数</th>';
-  h += '<th style="'+th+';width:70pt">仕込み<br>完了件数</th>';
-  h += '<th style="'+th+';width:58pt">月合計</th>';
-  h += '<th style="'+th+';width:58pt">累計</th>';
-  h += '<th style="'+th+';width:88pt">停止回避時間<br>月ごと(分)</th>';
-  h += '<th style="'+th+';width:88pt">停止回避時間<br>累計(分)</th>';
+  var bd = 'border:0.75pt solid #808080';
+  var color = '-webkit-print-color-adjust:exact;print-color-adjust:exact';   // 見出しの色も印刷する
+  var th = bd+';background:#d9e1f2;'+color+';font-weight:bold;text-align:center;vertical-align:middle;height:31.25pt;line-height:12.6pt;padding:0 1pt';
+  var td = bd+';text-align:right;vertical-align:middle;height:12.45pt;line-height:12.45pt;padding:0 1pt';   // 罫線込みで 1 行 13.2pt
+  var total = 0;
+  EVAL_COL_WIDTHS.forEach(function(w){ total += w; });
+  // 英数字は Excel と同じ Calibri(無ければ同じ幅の Carlito)。日本語は端末の標準の字体
+  var h = '<div style="color:#000;font-family:Calibri,Carlito,sans-serif;font-size:11pt">';
+  h += '<div style="font-size:14pt;font-weight:bold;line-height:16.5pt">日常点検アプリ 完了済み不具合件数と停止回避時間</div>';
+  h += '<div style="font-size:10.5pt;line-height:13.2pt;margin-bottom:13.2pt">停止回避時間: 完了済み不具合 1 件あたり '+EVAL_MINUTES_PER_ISSUE+' 分と換算(月ごと = 月合計 × '+EVAL_MINUTES_PER_ISSUE+' 分、累計 = 累計件数 × '+EVAL_MINUTES_PER_ISSUE+' 分)</div>';
+  h += '<table style="border-collapse:collapse;table-layout:fixed;width:'+total+'pt;font-size:11pt;color:#000"><colgroup>';
+  EVAL_COL_WIDTHS.forEach(function(w){ h += '<col style="width:'+w+'pt">'; });
+  h += '</colgroup><thead><tr>';
+  h += '<th style="'+th+'">月</th>';
+  h += '<th style="'+th+'">NID<br>完了件数</th>';
+  h += '<th style="'+th+'">仕込み<br>完了件数</th>';
+  h += '<th style="'+th+'">月合計</th>';
+  h += '<th style="'+th+'">累計</th>';
+  h += '<th style="'+th+'">停止回避時間<br>月ごと(分)</th>';
+  h += '<th style="'+th+'">停止回避時間<br>累計(分)</th>';
   h += '</tr></thead><tbody>';
   rows.forEach(function(r){
     h += '<tr>';
@@ -4472,10 +4508,28 @@ function evalSheetHTML(untilYm){
   // 今月を印刷するときは、今日までの件数であることを書き添える
   var today = todayStr();
   var last = rows.length ? rows[rows.length - 1].ym : '';
-  h += '<div style="font-size:10.5pt;margin-top:10pt">※データ取得日: '+today+
+  h += '<div style="line-height:13.2pt;margin-top:13.2pt">※データ取得日: '+today+
     (last === currentMonthStr() ? '('+Number(last.split('-')[1])+'月は '+Number(today.split('-')[2])+'日までの件数)' : '')+'</div>';
   h += '</div>';
   return h;
+}
+
+// 評価シートだけを A4 縦で印刷する(PDF 版と同じ紙・余白・大きさ)
+function doPrintEval(){
+  if(STATE.printMonth < EVAL_START_MONTH){
+    alert('停止回避時間シートは '+Number(EVAL_START_MONTH.split('-')[1])+'月('+EVAL_START_MONTH.split('-')[0]+'年)以降の月で印刷できます。');
+    return;
+  }
+  var styleEl = el('dynamic-print-style');
+  if(!styleEl){ styleEl=document.createElement('style'); styleEl.id='dynamic-print-style'; document.head.appendChild(styleEl); }
+  // 余白は PDF 版に合わせる(上 68pt・下 1 インチ・左右 0.75 インチ)
+  styleEl.textContent = '@media print { @page { size: A4 portrait; margin: 68pt 0.75in 1in; } }';
+  el('print-area').innerHTML = evalSheetHTML(STATE.printMonth);
+  el('print-area').classList.add('show');
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ el('print-area').classList.remove('show'); }, 500);
+  }, 100);
 }
 
 // ============================================================
@@ -4565,6 +4619,7 @@ function attachHandlers(){
   if(el('inp-month')) el('inp-month').onchange = function(){ STATE.printMonth=this.value; render(); };
   if(el('btn-print')) el('btn-print').onclick = doPrintMonth;
   if(el('chk-eval')) el('chk-eval').onchange = function(){ STATE.printEval = this.checked; };
+  if(el('btn-print-eval')) el('btn-print-eval').onclick = doPrintEval;
   if(el('btn-excel')) el('btn-excel').onclick = exportExcel;
 }
 
