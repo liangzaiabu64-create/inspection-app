@@ -1481,7 +1481,7 @@ function cmStatus(cm){
   return 'none';
 }
 function cmChipHTML(state){
-  if(state === 'done') return '<span class="cm-chip done">✓ 対策済</span>';
+  if(state === 'done') return '<span class="cm-chip done">✓ 記入済み</span>';
   if(state === 'partial') return '<span class="cm-chip partial">△ 記入途中</span>';
   return '<span class="cm-chip blank">未記入</span>';
 }
@@ -1534,18 +1534,19 @@ function cmFindItem(mid, itemId){
   return null;
 }
 
-// 点検行の「対策」ボタン。対策済は濃い青、記入途中はオレンジの枠
+// 点検行の「異常時対応」ボタン(× のときの対応方法を見る)。記入済みは濃い青、記入途中はオレンジの枠。
+// 「対策済」だと不具合を直し終えたように読めるため、「異常時対応」と出す
 function cmButtonHTML(it){
   var cm = getCountermeasure(it.id);
   var st = cmStatus(cm);
   if(st !== 'none'){
     var n = cm.photoIds ? cm.photoIds.length : 0;
     return '<button type="button" class="cm-btn has '+st+'" data-cm="'+esc(it.id)+'">'+
-      (st === 'done' ? '✓ 対策済' : '△ 記入途中')+(n?' <span class="cm-count">📷'+n+'</span>':'')+'</button>';
+      (st === 'done' ? '📖 異常時対応' : '△ 異常時対応(記入途中)')+(n?' <span class="cm-count">📷'+n+'</span>':'')+'</button>';
   }
   // 読み込めていないときは「未登録」と言い切らない(登録済みかもしれない)
-  if(STATE.cmServerReady === null) return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策(未取得)</button>';
-  return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">🛠 対策'+(STATE.editMode?'を登録':' 未登録')+'</button>';
+  if(STATE.cmServerReady === null) return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">📖 異常時対応(未取得)</button>';
+  return '<button type="button" class="cm-btn none" data-cm="'+esc(it.id)+'">'+(STATE.editMode?'＋ 異常時対応を登録':'📖 異常時対応 未登録')+'</button>';
 }
 
 // × の行に出す、登録済みの対策の要約(確認箇所の一覧。タップで全文と写真)。未登録なら何も出さない。
@@ -1569,7 +1570,7 @@ function cmNgHintHTML(it){
     body = '<div class="cm-hint-text">'+esc(cmSummaryText(cm))+'</div>';
   }
   return '<div class="cm-hint '+st+'" data-cm="'+esc(it.id)+'" role="button" tabindex="0">'+
-    '<div class="cm-hint-head">🛠 登録されている対策 '+cmChipHTML(st)+'(タップで写真と全文)</div>'+body+'</div>';
+    '<div class="cm-hint-head">📖 異常時対応 '+cmChipHTML(st)+'(タップで写真と全文)</div>'+body+'</div>';
 }
 
 // 点検行の中の「対策」ボタン・要約にハンドラを付ける
@@ -1594,7 +1595,7 @@ function openCountermeasure(itemId){
   var div = document.createElement('div');
   div.className = 'modal-bg';
   div.id = 'cm-modal';
-  div.innerHTML = '<div class="modal cm-modal" role="dialog" aria-modal="true" aria-label="対策"></div>';
+  div.innerHTML = '<div class="modal cm-modal" role="dialog" aria-modal="true" aria-label="異常時対応"></div>';
   document.body.appendChild(div);
   div.addEventListener('click', function(ev){ if(ev.target===div) requestCloseCountermeasure(); });
   renderCountermeasure();
@@ -2042,7 +2043,7 @@ function cmMessageHTML(m){
 
 // 閲覧: 対策済・記入途中の帯
 function cmStatusBannerHTML(st, pairs){
-  if(st === 'done') return '<div class="cm-status done">✓ 対策済</div>';
+  if(st === 'done') return '<div class="cm-status done">✓ 記入済み</div>';
   var why = pairs.length ? '対策方法がまだ書かれていない確認箇所があります' : '確認箇所と対策方法がまだ書かれていません';
   return '<div class="cm-status partial">△ 記入途中<span>'+why+'</span></div>';
 }
@@ -2118,12 +2119,12 @@ function renderCountermeasure(){
       if(cm.notes) h += '<label>注意事項</label><div class="cm-notes-view">⚠ '+esc(cm.notes)+'</div>';
       h += '<div class="cm-meta">最終更新: '+esc(cm.updatedAt || '—')+(cm.updatedBy ? ' / 記入者: '+esc(cm.updatedBy) : '')+'</div>';
     } else if(STATE.cmServerReady !== null){
-      h += '<div class="empty" style="padding:28px 12px">この項目の対策はまだ登録されていません</div>';
+      h += '<div class="empty" style="padding:28px 12px">この項目の異常時対応はまだ登録されていません</div>';
     }
     h += cmMessageHTML(m);
     h += '<div class="cm-foot">';
     if(STATE.editMode && cmEditReady()){
-      h += '<button type="button" class="btn primary" id="cm-edit">'+(st !== 'none' ? '✏ 対策を編集' : '＋ 対策を登録')+'</button>';
+      h += '<button type="button" class="btn primary" id="cm-edit">'+(st !== 'none' ? '✏ 異常時対応を編集' : '＋ 異常時対応を登録')+'</button>';
     } else if(STATE.editMode && STATE.cmServerReady === true){
       h += '<div class="cm-msg warn" style="margin:0">確認箇所ごとの対策を登録・変更するには、apps_script.gs を新しい版に更新して新しいバージョンでデプロイしてください。</div>';
     } else if(!STATE.editMode){
